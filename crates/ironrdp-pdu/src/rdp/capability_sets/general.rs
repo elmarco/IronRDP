@@ -111,7 +111,7 @@ impl PduParsing for General {
 
         let protocol_ver = buffer.read_u16::<LittleEndian>()?;
         if protocol_ver != PROTOCOL_VER {
-            return Err(CapabilitySetsError::InvalidProtocolVersion);
+            warn!("Invalid protocol version: {protocol_ver:?}");
         }
 
         let _padding = buffer.read_u16::<LittleEndian>()?;
