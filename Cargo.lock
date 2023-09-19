@@ -1798,6 +1798,7 @@ name = "ironrdp"
 version = "0.5.0"
 dependencies = [
  "anyhow",
+ "async-trait",
  "bmp",
  "ironrdp-acceptor",
  "ironrdp-blocking",
@@ -1814,6 +1815,9 @@ dependencies = [
  "ironrdp-svc",
  "pico-args",
  "rustls",
+ "rustls-pemfile",
+ "tokio",
+ "tokio-rustls",
  "tracing",
  "tracing-subscriber",
  "x509-cert",
