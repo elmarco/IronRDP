@@ -8,7 +8,7 @@ use ironrdp_pdu::input::fast_path::{FastPathInput, FastPathInputEvent};
 use ironrdp_pdu::input::InputEventPdu;
 use ironrdp_pdu::{self, mcs, nego, rdp, Action, PduParsing};
 use ironrdp_tokio::{Framed, FramedRead, FramedWrite, TokioFramed};
-use tokio::net::TcpListener;
+use tokio::net::{TcpListener, TcpStream};
 use tokio_rustls::TlsAcceptor;
 
 use crate::display::{DisplayUpdate, RdpServerDisplay};
@@ -83,35 +83,39 @@ impl RdpServer {
         builder::RdpServerBuilder::new()
     }
 
+    pub async fn run_connection(&mut self, stream: TcpStream) -> Result<()> {
+        let framed = TokioFramed::new(stream);
+
+        let size = self.display.size().await;
+        let capabilities = capabilities::capabilities(&self.opts, size.clone());
+        let mut acceptor = Acceptor::new(self.opts.security.flag(), size, capabilities);
+
+        match ironrdp_acceptor::accept_begin(framed, &mut acceptor).await? {
+            BeginResult::ShouldUpgrade(stream) => {
+                let framed = TokioFramed::new(match &self.opts.security {
+                    RdpServerSecurity::Tls(acceptor) => acceptor.accept(stream).await?,
+                    RdpServerSecurity::None => unreachable!(),
+                });
+                let (framed, _) = ironrdp_acceptor::accept_finalize(framed, &mut acceptor).await?;
+                self.client_loop(framed).await?;
+            }
+
+            BeginResult::Continue(framed) => {
+                let (framed, _) = ironrdp_acceptor::accept_finalize(framed, &mut acceptor).await?;
+                self.client_loop(framed).await?;
+            }
+        }
+
+        Ok(())
+    }
+
     pub async fn run(&mut self) -> Result<()> {
         let listener = TcpListener::bind(self.opts.addr).await?;
 
         while let Ok((stream, peer)) = listener.accept().await {
             debug!(?peer, "received connection");
-            let framed = TokioFramed::new(stream);
-
-            let size = self.display.size().await;
-            let capabilities = capabilities::capabilities(&self.opts, size.clone());
-            let mut acceptor = Acceptor::new(self.opts.security.flag(), size, capabilities);
-
-            match ironrdp_acceptor::accept_begin(framed, &mut acceptor).await {
-                Ok(BeginResult::ShouldUpgrade(stream)) => {
-                    let framed = TokioFramed::new(match &self.opts.security {
-                        RdpServerSecurity::Tls(acceptor) => acceptor.accept(stream).await?,
-                        RdpServerSecurity::None => unreachable!(),
-                    });
-                    let (framed, _) = ironrdp_acceptor::accept_finalize(framed, &mut acceptor).await?;
-                    self.client_loop(framed).await?;
-                }
-
-                Ok(BeginResult::Continue(framed)) => {
-                    let (framed, _) = ironrdp_acceptor::accept_finalize(framed, &mut acceptor).await?;
-                    self.client_loop(framed).await?;
-                }
-
-                Err(e) => {
-                    error!("connection error: {:?}", e);
-                }
+            if let Err(e) = self.run_connection(stream).await {
+                error!("Connection error: {e}");
             }
         }
 
