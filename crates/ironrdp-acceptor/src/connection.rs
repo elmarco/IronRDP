@@ -368,7 +368,7 @@ impl Sequence for Acceptor {
                     share_control_pdu: rdp::headers::ShareControlPdu::ServerDemandActive(
                         rdp::capability_sets::ServerDemandActive {
                             pdu: rdp::capability_sets::DemandActive {
-                                source_descriptor: "".into(),
+                                source_descriptor: "RDP".into(),
                                 capability_sets: self.server_capabilities.clone(),
                             },
                         },
