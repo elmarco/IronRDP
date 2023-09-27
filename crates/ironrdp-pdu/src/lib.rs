@@ -1,3 +1,6 @@
+#[macro_use]
+extern crate tracing;
+
 use core::fmt;
 
 use cursor::WriteCursor;
