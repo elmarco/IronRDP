@@ -10,7 +10,7 @@ use thiserror::Error;
 use crate::cursor::{ReadCursor, WriteCursor};
 use crate::utils::CharacterSet;
 use crate::{
-    try_read_optional, try_write_optional, utils, PduDecode, PduEncode, PduError, PduParsing, PduResult,
+    try_read_optional, try_write_optional, utils, PduDecode, PduEncode, PduError, PduErrorKind, PduParsing, PduResult,
 };
 
 const RECONNECT_COOKIE_LEN: usize = 28;
@@ -250,10 +250,8 @@ impl PduParsing for ExtendedClientOptionalInfo {
 
         optional_data.timezone = match TimezoneInfo::from_buffer(&mut stream) {
             Ok(v) => Some(v),
-            Err(ClientInfoError::IOError(ref e)) if e.kind() == io::ErrorKind::UnexpectedEof => {
-                return Ok(optional_data)
-            }
-            Err(e) => return Err(e),
+            Err(e) if matches!(e.kind(), PduErrorKind::NotEnoughBytes { .. }) => return Ok(optional_data),
+            Err(e) => return Err(e.into()),
         };
         optional_data.session_id = Some(try_read_optional!(stream.read_u32::<LittleEndian>(), optional_data));
         optional_data.performance_flags = Some(
@@ -324,21 +322,62 @@ pub struct TimezoneInfo {
     pub daylight_bias: u32,
 }
 
-impl PduParsing for TimezoneInfo {
-    type Error = ClientInfoError;
+impl TimezoneInfo {
+    const NAME: &'static str = "TimezoneInfo";
 
-    fn from_buffer(mut stream: impl io::Read) -> Result<Self, Self::Error> {
-        let bias = stream.read_u32::<LittleEndian>()?;
+    const FIXED_PART_SIZE: usize = BIAS_SIZE
+        + TIMEZONE_INFO_NAME_LEN
+        + SystemTime::FIXED_PART_SIZE
+        + BIAS_SIZE
+        + TIMEZONE_INFO_NAME_LEN
+        + SystemTime::FIXED_PART_SIZE
+        + BIAS_SIZE;
+}
 
-        let standard_name =
-            utils::read_string_from_stream(&mut stream, TIMEZONE_INFO_NAME_LEN, CharacterSet::Unicode, false)?;
-        let standard_date = Option::<SystemTime>::from_buffer(&mut stream)?;
-        let standard_bias = stream.read_u32::<LittleEndian>()?;
+impl PduEncode for TimezoneInfo {
+    fn encode(&self, dst: &mut WriteCursor<'_>) -> PduResult<()> {
+        ensure_fixed_part_size!(in: dst);
 
-        let daylight_name =
-            utils::read_string_from_stream(&mut stream, TIMEZONE_INFO_NAME_LEN, CharacterSet::Unicode, false)?;
-        let daylight_date = Option::<SystemTime>::from_buffer(&mut stream)?;
-        let daylight_bias = stream.read_u32::<LittleEndian>()?;
+        dst.write_u32(self.bias);
+
+        let mut standard_name = utils::to_utf16_bytes(self.standard_name.as_str());
+        standard_name.resize(TIMEZONE_INFO_NAME_LEN, 0);
+        dst.write_slice(&standard_name);
+
+        self.standard_date.encode(dst)?;
+        dst.write_u32(self.standard_bias);
+
+        let mut daylight_name = utils::to_utf16_bytes(self.daylight_name.as_str());
+        daylight_name.resize(TIMEZONE_INFO_NAME_LEN, 0);
+        dst.write_slice(&daylight_name);
+
+        self.daylight_date.encode(dst)?;
+        dst.write_u32(self.daylight_bias);
+
+        Ok(())
+    }
+
+    fn name(&self) -> &'static str {
+        Self::NAME
+    }
+
+    fn size(&self) -> usize {
+        Self::FIXED_PART_SIZE
+    }
+}
+
+impl<'de> PduDecode<'de> for TimezoneInfo {
+    fn decode(src: &mut ReadCursor<'de>) -> PduResult<Self> {
+        ensure_fixed_part_size!(in: src);
+
+        let bias = src.read_u32();
+        let standard_name = utils::decode_string(src.read_slice(TIMEZONE_INFO_NAME_LEN), CharacterSet::Unicode, false)?;
+        let standard_date = <Option<SystemTime>>::decode(src)?;
+        let standard_bias = src.read_u32();
+
+        let daylight_name = utils::decode_string(src.read_slice(TIMEZONE_INFO_NAME_LEN), CharacterSet::Unicode, false)?;
+        let daylight_date = <Option<SystemTime>>::decode(src)?;
+        let daylight_bias = src.read_u32();
 
         Ok(Self {
             bias,
@@ -350,37 +389,9 @@ impl PduParsing for TimezoneInfo {
             daylight_bias,
         })
     }
-
-    fn to_buffer(&self, mut stream: impl io::Write) -> Result<(), Self::Error> {
-        stream.write_u32::<LittleEndian>(self.bias)?;
-
-        let mut standard_name = utils::to_utf16_bytes(self.standard_name.as_str());
-        standard_name.resize(TIMEZONE_INFO_NAME_LEN, 0);
-        stream.write_all(standard_name.as_ref())?;
-
-        self.standard_date.to_buffer(&mut stream)?;
-        stream.write_u32::<LittleEndian>(self.standard_bias)?;
-
-        let mut daylight_name = utils::to_utf16_bytes(self.daylight_name.as_str());
-        daylight_name.resize(TIMEZONE_INFO_NAME_LEN, 0);
-        stream.write_all(daylight_name.as_ref())?;
-
-        self.daylight_date.to_buffer(&mut stream)?;
-        stream.write_u32::<LittleEndian>(self.daylight_bias)?;
-
-        Ok(())
-    }
-
-    fn buffer_length(&self) -> usize {
-        BIAS_SIZE
-            + TIMEZONE_INFO_NAME_LEN
-            + self.standard_date.buffer_length()
-            + BIAS_SIZE
-            + TIMEZONE_INFO_NAME_LEN
-            + self.daylight_date.buffer_length()
-            + BIAS_SIZE
-    }
 }
+
+impl_pdu_parsing!(TimezoneInfo);
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct SystemTime {
@@ -459,8 +470,6 @@ impl<'de> PduDecode<'de> for Option<SystemTime> {
         }
     }
 }
-
-impl_pdu_parsing!(Option<SystemTime>, SystemTime::FIXED_PART_SIZE);
 
 #[repr(u16)]
 #[derive(Debug, Copy, Clone, PartialEq, Eq, FromPrimitive, ToPrimitive)]
