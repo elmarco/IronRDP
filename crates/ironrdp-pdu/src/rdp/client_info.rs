@@ -148,7 +148,7 @@ impl PduParsing for ClientInfo {
                 + string_len(self.alternate_shell.as_str(), character_set)
                 + string_len(self.work_dir.as_str(), character_set)) as usize
             + character_set.to_usize().unwrap() * 5 // null terminator
-            + self.extra_info.buffer_length(character_set)
+            + self.extra_info.size(character_set)
     }
 }
 
@@ -178,19 +178,26 @@ pub struct ExtendedClientInfo {
 }
 
 impl ExtendedClientInfo {
-    fn from_buffer(mut stream: impl io::Read, character_set: CharacterSet) -> Result<Self, ClientInfoError> {
-        let address_family =
-            AddressFamily::from_u16(stream.read_u16::<LittleEndian>()?).ok_or(ClientInfoError::InvalidAddressFamily)?;
+    // const NAME: &'static str = "ExtendedClientInfo";
+
+    fn decode(src: &mut ReadCursor<'_>, character_set: CharacterSet) -> PduResult<Self> {
+        ensure_size!(in: src, size: CLIENT_ADDRESS_FAMILY_SIZE + CLIENT_ADDRESS_LENGTH_SIZE);
+
+        let address_family = AddressFamily::from_u16(src.read_u16())
+            .ok_or(invalid_message_err!("clientAddressFamily", "invalid address family"))?;
 
         // This size includes the length of the mandatory null terminator.
-        let address_size = stream.read_u16::<LittleEndian>()? as usize;
-        let address = utils::read_string_from_stream(&mut stream, address_size, character_set, false)?;
+        let address_size = src.read_u16() as usize;
+        ensure_size!(in: src, size: address_size + CLIENT_DIR_LENGTH_SIZE);
 
+        let address = utils::decode_string(src.read_slice(address_size), character_set, false)?;
         // This size includes the length of the mandatory null terminator.
-        let dir_size = stream.read_u16::<LittleEndian>()? as usize;
-        let dir = utils::read_string_from_stream(&mut stream, dir_size, character_set, false)?;
+        let dir_size = src.read_u16() as usize;
+        ensure_size!(in: src, size: dir_size);
 
-        let optional_data = ExtendedClientOptionalInfo::from_buffer(&mut stream)?;
+        let dir = utils::decode_string(src.read_slice(dir_size), character_set, false)?;
+
+        let optional_data = ExtendedClientOptionalInfo::decode(src)?;
 
         Ok(Self {
             address_family,
@@ -200,26 +207,37 @@ impl ExtendedClientInfo {
         })
     }
 
-    fn to_buffer(&self, mut stream: impl io::Write, character_set: CharacterSet) -> Result<(), ClientInfoError> {
-        stream.write_u16::<LittleEndian>(self.address_family.to_u16().unwrap())?;
+    fn from_buffer(mut stream: impl io::Read, character_set: CharacterSet) -> Result<Self, ClientInfoError> {
+        let mut buf = [0; crate::legacy::MAX_PDU_SIZE];
+        let len = stream.read(&mut buf)?;
+        let mut cursor = ReadCursor::new(&buf[..len]);
+        Ok(Self::decode(&mut cursor, character_set)?)
+    }
 
-        // + size of null terminator, which will write in the write_string function
-        stream.write_u16::<LittleEndian>(
-            string_len(self.address.as_str(), character_set) + character_set.to_u16().unwrap(),
-        )?;
-        utils::write_string_with_null_terminator(&mut stream, self.address.as_str(), character_set)?;
+    fn encode(&self, dst: &mut WriteCursor<'_>, character_set: CharacterSet) -> PduResult<()> {
+        ensure_size!(in: dst, size: self.size(character_set));
 
-        stream.write_u16::<LittleEndian>(
-            string_len(self.dir.as_str(), character_set) + character_set.to_u16().unwrap(),
-        )?;
-        utils::write_string_with_null_terminator(&mut stream, self.dir.as_str(), character_set)?;
-
-        self.optional_data.to_buffer(&mut stream)?;
+        dst.write_u16(self.address_family.to_u16().unwrap());
+        // // + size of null terminator, which will write in the write_string function
+        dst.write_u16(string_len(self.address.as_str(), character_set) + character_set.to_u16().unwrap());
+        utils::write_string_to_cursor(dst, self.address.as_str(), character_set, true)?;
+        dst.write_u16(string_len(self.dir.as_str(), character_set) + character_set.to_u16().unwrap());
+        utils::write_string_to_cursor(dst, self.dir.as_str(), character_set, true)?;
+        self.optional_data.encode(dst)?;
 
         Ok(())
     }
 
-    fn buffer_length(&self, character_set: CharacterSet) -> usize {
+    fn to_buffer(&self, mut stream: impl io::Write, character_set: CharacterSet) -> Result<(), ClientInfoError> {
+        let mut buf = [0; crate::legacy::MAX_PDU_SIZE];
+        let mut cursor = WriteCursor::new(&mut buf);
+        Self::encode(self, &mut cursor, character_set)?;
+        let len = cursor.pos();
+        stream.write_all(&buf[..len])?;
+        Ok(())
+    }
+
+    fn size(&self, character_set: CharacterSet) -> usize {
         CLIENT_ADDRESS_FAMILY_SIZE
             + CLIENT_ADDRESS_LENGTH_SIZE
             + string_len(self.address.as_str(), character_set) as usize
@@ -227,7 +245,7 @@ impl ExtendedClientInfo {
         + CLIENT_DIR_LENGTH_SIZE
         + string_len(self.dir.as_str(), character_set) as usize
             + character_set.to_usize().unwrap() // null terminator
-        + self.optional_data.buffer_length()
+        + self.optional_data.size()
     }
 }
 
@@ -331,8 +349,6 @@ impl<'de> PduDecode<'de> for ExtendedClientOptionalInfo {
         Ok(optional_data)
     }
 }
-
-impl_pdu_parsing_max!(ExtendedClientOptionalInfo);
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct TimezoneInfo {
