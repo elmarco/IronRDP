@@ -2,6 +2,7 @@ use std::io;
 
 use thiserror::Error;
 
+use crate::cursor::{ReadCursor, WriteCursor};
 use crate::input::InputEventError;
 use crate::rdp::capability_sets::CapabilitySetsError;
 use crate::rdp::client_info::{ClientInfo, ClientInfoError};
@@ -9,7 +10,7 @@ use crate::rdp::finalization_messages::FinalizationMessagesError;
 use crate::rdp::headers::{BasicSecurityHeader, BasicSecurityHeaderFlags, ShareControlPduType, ShareDataPduType};
 use crate::rdp::server_error_info::ServerSetErrorInfoError;
 use crate::rdp::server_license::ServerLicenseError;
-use crate::{PduError, PduParsing};
+use crate::{PduDecode, PduEncode, PduError, PduResult};
 
 pub mod capability_sets;
 pub mod client_info;
@@ -28,34 +29,46 @@ pub struct ClientInfoPdu {
     pub client_info: ClientInfo,
 }
 
-impl PduParsing for ClientInfoPdu {
-    type Error = RdpError;
+impl ClientInfoPdu {
+    const NAME: &'static str = "ClientInfoPDU";
 
-    fn from_buffer(mut stream: impl io::Read) -> Result<Self, Self::Error> {
-        let security_header = BasicSecurityHeader::from_buffer(&mut stream)?;
-        if security_header.flags.contains(BasicSecurityHeaderFlags::INFO_PKT) {
-            let client_info = ClientInfo::from_buffer(&mut stream)?;
+    const FIXED_PART_SIZE: usize = BasicSecurityHeader::FIXED_PART_SIZE + ClientInfo::FIXED_PART_SIZE;
+}
 
-            Ok(Self {
-                security_header,
-                client_info,
-            })
-        } else {
-            Err(RdpError::InvalidPdu(String::from(
-                "Expected ClientInfo PDU, got invalid SecurityHeader flags",
-            )))
-        }
-    }
+impl PduEncode for ClientInfoPdu {
+    fn encode(&self, dst: &mut WriteCursor<'_>) -> PduResult<()> {
+        ensure_fixed_part_size!(in: dst);
 
-    fn to_buffer(&self, mut stream: impl io::Write) -> Result<(), Self::Error> {
-        self.security_header.to_buffer(&mut stream)?;
-        self.client_info.to_buffer(&mut stream)?;
+        self.security_header.encode(dst)?;
+        self.client_info.encode(dst)?;
 
         Ok(())
     }
 
-    fn buffer_length(&self) -> usize {
-        self.security_header.buffer_length() + self.client_info.buffer_length()
+    fn name(&self) -> &'static str {
+        Self::NAME
+    }
+
+    fn size(&self) -> usize {
+        self.security_header.size() + self.client_info.size()
+    }
+}
+
+impl<'de> PduDecode<'de> for ClientInfoPdu {
+    fn decode(src: &mut ReadCursor<'de>) -> PduResult<Self> {
+        ensure_fixed_part_size!(in: src);
+
+        let security_header = BasicSecurityHeader::decode(src)?;
+        if !security_header.flags.contains(BasicSecurityHeaderFlags::INFO_PKT) {
+            return Err(invalid_message_err!("securityHeader", "got invalid security header"));
+        }
+
+        let client_info = ClientInfo::decode(src)?;
+
+        Ok(Self {
+            security_header,
+            client_info,
+        })
     }
 }
 

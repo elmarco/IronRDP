@@ -23,7 +23,7 @@ pub fn pdu_decode(data: &[u8]) {
     let _ = decode::<McsMessage<'_>>(data);
     let _ = ConnectInitial::from_buffer(data);
     let _ = ConnectResponse::from_buffer(data);
-    let _ = ClientInfoPdu::from_buffer(data);
+    let _ = decode::<ClientInfoPdu>(data);
     let _ = capability_sets::CapabilitySet::from_buffer(data);
     let _ = headers::ShareControlHeader::from_buffer(data);
     let _ = decode::<pcb::PreconnectionBlob>(data);

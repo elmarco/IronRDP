@@ -47,7 +47,7 @@ pub struct ClientInfo {
 impl ClientInfo {
     const NAME: &'static str = "ClientInfo";
 
-    const FIXED_PART_SIZE: usize = CODE_PAGE_SIZE
+    pub const FIXED_PART_SIZE: usize = CODE_PAGE_SIZE
         + FLAGS_SIZE
         + DOMAIN_LENGTH_SIZE
         + USER_NAME_LENGTH_SIZE
@@ -173,8 +173,6 @@ impl<'de> PduDecode<'de> for ClientInfo {
         })
     }
 }
-
-impl_pdu_parsing_max!(ClientInfo);
 
 #[derive(Clone, PartialEq, Eq)]
 pub struct Credentials {
