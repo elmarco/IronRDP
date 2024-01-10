@@ -2,14 +2,13 @@ use core::fmt;
 use std::io;
 
 use bitflags::bitflags;
-use byteorder::{LittleEndian, ReadBytesExt as _, WriteBytesExt as _};
 use num_derive::{FromPrimitive, ToPrimitive};
 use num_traits::{FromPrimitive as _, ToPrimitive as _};
 use thiserror::Error;
 
 use crate::cursor::{ReadCursor, WriteCursor};
 use crate::utils::CharacterSet;
-use crate::{utils, PduDecode, PduEncode, PduError, PduParsing, PduResult};
+use crate::{utils, PduDecode, PduEncode, PduError, PduResult};
 
 const RECONNECT_COOKIE_LEN: usize = 28;
 const TIMEZONE_INFO_NAME_LEN: usize = 64;
@@ -45,89 +44,56 @@ pub struct ClientInfo {
     pub extra_info: ExtendedClientInfo,
 }
 
-impl PduParsing for ClientInfo {
-    type Error = ClientInfoError;
+impl ClientInfo {
+    const NAME: &'static str = "ClientInfo";
 
-    fn from_buffer(mut stream: impl io::Read) -> Result<Self, Self::Error> {
-        let code_page = stream.read_u32::<LittleEndian>()?;
-        let flags_with_compression_type = stream.read_u32::<LittleEndian>()?;
+    const FIXED_PART_SIZE: usize = CODE_PAGE_SIZE
+        + FLAGS_SIZE
+        + DOMAIN_LENGTH_SIZE
+        + USER_NAME_LENGTH_SIZE
+        + PASSWORD_LENGTH_SIZE
+        + ALTERNATE_SHELL_LENGTH_SIZE
+        + WORK_DIR_LENGTH_SIZE;
+}
 
-        let flags = ClientInfoFlags::from_bits(flags_with_compression_type & !COMPRESSION_TYPE_MASK)
-            .ok_or(ClientInfoError::InvalidClientInfoFlags)?;
-        let compression_type =
-            CompressionType::from_u8(((flags_with_compression_type & COMPRESSION_TYPE_MASK) >> 9) as u8)
-                .ok_or(ClientInfoError::InvalidClientInfoFlags)?;
-        let character_set = if flags.contains(ClientInfoFlags::UNICODE) {
-            CharacterSet::Unicode
-        } else {
-            CharacterSet::Ansi
-        };
+impl PduEncode for ClientInfo {
+    fn encode(&self, dst: &mut WriteCursor<'_>) -> PduResult<()> {
+        ensure_fixed_part_size!(in: dst);
 
-        // Sizes exclude the length of the mandatory null terminator
-        let domain_size = stream.read_u16::<LittleEndian>()? as usize;
-        let user_name_size = stream.read_u16::<LittleEndian>()? as usize;
-        let password_size = stream.read_u16::<LittleEndian>()? as usize;
-        let alternate_shell_size = stream.read_u16::<LittleEndian>()? as usize;
-        let work_dir_size = stream.read_u16::<LittleEndian>()? as usize;
-
-        let domain = utils::read_string_from_stream(&mut stream, domain_size, character_set, true)?;
-        let username = utils::read_string_from_stream(&mut stream, user_name_size, character_set, true)?;
-        let password = utils::read_string_from_stream(&mut stream, password_size, character_set, true)?;
-
-        let domain = if domain.is_empty() { None } else { Some(domain) };
-        let credentials = Credentials {
-            username,
-            password,
-            domain,
-        };
-
-        let alternate_shell = utils::read_string_from_stream(&mut stream, alternate_shell_size, character_set, true)?;
-        let work_dir = utils::read_string_from_stream(&mut stream, work_dir_size, character_set, true)?;
-
-        let extra_info = ExtendedClientInfo::from_buffer(&mut stream, character_set)?;
-
-        Ok(Self {
-            credentials,
-            code_page,
-            flags,
-            compression_type,
-            alternate_shell,
-            work_dir,
-            extra_info,
-        })
-    }
-
-    fn to_buffer(&self, mut stream: impl io::Write) -> Result<(), Self::Error> {
         let character_set = if self.flags.contains(ClientInfoFlags::UNICODE) {
             CharacterSet::Unicode
         } else {
             CharacterSet::Ansi
         };
 
-        stream.write_u32::<LittleEndian>(self.code_page)?;
+        dst.write_u32(self.code_page);
 
         let flags_with_compression_type = self.flags.bits() | (self.compression_type.to_u32().unwrap() << 9);
-        stream.write_u32::<LittleEndian>(flags_with_compression_type)?;
+        dst.write_u32(flags_with_compression_type);
 
         let domain = self.credentials.domain.clone().unwrap_or_default();
-        stream.write_u16::<LittleEndian>(string_len(domain.as_str(), character_set))?;
-        stream.write_u16::<LittleEndian>(string_len(self.credentials.username.as_str(), character_set))?;
-        stream.write_u16::<LittleEndian>(string_len(self.credentials.password.as_str(), character_set))?;
-        stream.write_u16::<LittleEndian>(string_len(self.alternate_shell.as_str(), character_set))?;
-        stream.write_u16::<LittleEndian>(string_len(self.work_dir.as_str(), character_set))?;
+        dst.write_u16(string_len(domain.as_str(), character_set));
+        dst.write_u16(string_len(self.credentials.username.as_str(), character_set));
+        dst.write_u16(string_len(self.credentials.password.as_str(), character_set));
+        dst.write_u16(string_len(self.alternate_shell.as_str(), character_set));
+        dst.write_u16(string_len(self.work_dir.as_str(), character_set));
 
-        utils::write_string_with_null_terminator(&mut stream, domain.as_str(), character_set)?;
-        utils::write_string_with_null_terminator(&mut stream, self.credentials.username.as_str(), character_set)?;
-        utils::write_string_with_null_terminator(&mut stream, self.credentials.password.as_str(), character_set)?;
-        utils::write_string_with_null_terminator(&mut stream, self.alternate_shell.as_str(), character_set)?;
-        utils::write_string_with_null_terminator(&mut stream, self.work_dir.as_str(), character_set)?;
+        utils::write_string_to_cursor(dst, domain.as_str(), character_set, true)?;
+        utils::write_string_to_cursor(dst, self.credentials.username.as_str(), character_set, true)?;
+        utils::write_string_to_cursor(dst, self.credentials.password.as_str(), character_set, true)?;
+        utils::write_string_to_cursor(dst, self.alternate_shell.as_str(), character_set, true)?;
+        utils::write_string_to_cursor(dst, self.work_dir.as_str(), character_set, true)?;
 
-        self.extra_info.to_buffer(&mut stream, character_set)?;
+        self.extra_info.encode(dst, character_set)?;
 
         Ok(())
     }
 
-    fn buffer_length(&self) -> usize {
+    fn name(&self) -> &'static str {
+        Self::NAME
+    }
+
+    fn size(&self) -> usize {
         let character_set = if self.flags.contains(ClientInfoFlags::UNICODE) {
             CharacterSet::Unicode
         } else {
@@ -151,6 +117,64 @@ impl PduParsing for ClientInfo {
             + self.extra_info.size(character_set)
     }
 }
+
+impl<'de> PduDecode<'de> for ClientInfo {
+    fn decode(src: &mut ReadCursor<'de>) -> PduResult<Self> {
+        ensure_fixed_part_size!(in: src);
+
+        let code_page = src.read_u32();
+        let flags_with_compression_type = src.read_u32();
+
+        let flags = ClientInfoFlags::from_bits(flags_with_compression_type & !COMPRESSION_TYPE_MASK)
+            .ok_or(invalid_message_err!("flags", "invalid ClientInfoFlags"))?;
+        let compression_type =
+            CompressionType::from_u8(((flags_with_compression_type & COMPRESSION_TYPE_MASK) >> 9) as u8)
+                .ok_or(invalid_message_err!("flags", "invalid CompressionType"))?;
+
+        let character_set = if flags.contains(ClientInfoFlags::UNICODE) {
+            CharacterSet::Unicode
+        } else {
+            CharacterSet::Ansi
+        };
+
+        // Sizes exclude the length of the mandatory null terminator
+        let nt = character_set.to_usize().unwrap();
+        let domain_size = src.read_u16() as usize + nt;
+        let user_name_size = src.read_u16() as usize + nt;
+        let password_size = src.read_u16() as usize + nt;
+        let alternate_shell_size = src.read_u16() as usize + nt;
+        let work_dir_size = src.read_u16() as usize + nt;
+        ensure_size!(in: src, size: domain_size + user_name_size + password_size + alternate_shell_size + work_dir_size);
+
+        let domain = utils::decode_string(src.read_slice(domain_size), character_set, true)?;
+        let username = utils::decode_string(src.read_slice(user_name_size), character_set, true)?;
+        let password = utils::decode_string(src.read_slice(password_size), character_set, true)?;
+
+        let domain = if domain.is_empty() { None } else { Some(domain) };
+        let credentials = Credentials {
+            username,
+            password,
+            domain,
+        };
+
+        let alternate_shell = utils::decode_string(src.read_slice(alternate_shell_size), character_set, true)?;
+        let work_dir = utils::decode_string(src.read_slice(work_dir_size), character_set, true)?;
+
+        let extra_info = ExtendedClientInfo::decode(src, character_set)?;
+
+        Ok(Self {
+            credentials,
+            code_page,
+            flags,
+            compression_type,
+            alternate_shell,
+            work_dir,
+            extra_info,
+        })
+    }
+}
+
+impl_pdu_parsing_max!(ClientInfo);
 
 #[derive(Clone, PartialEq, Eq)]
 pub struct Credentials {
@@ -207,13 +231,6 @@ impl ExtendedClientInfo {
         })
     }
 
-    fn from_buffer(mut stream: impl io::Read, character_set: CharacterSet) -> Result<Self, ClientInfoError> {
-        let mut buf = [0; crate::legacy::MAX_PDU_SIZE];
-        let len = stream.read(&mut buf)?;
-        let mut cursor = ReadCursor::new(&buf[..len]);
-        Ok(Self::decode(&mut cursor, character_set)?)
-    }
-
     fn encode(&self, dst: &mut WriteCursor<'_>, character_set: CharacterSet) -> PduResult<()> {
         ensure_size!(in: dst, size: self.size(character_set));
 
@@ -225,15 +242,6 @@ impl ExtendedClientInfo {
         utils::write_string_to_cursor(dst, self.dir.as_str(), character_set, true)?;
         self.optional_data.encode(dst)?;
 
-        Ok(())
-    }
-
-    fn to_buffer(&self, mut stream: impl io::Write, character_set: CharacterSet) -> Result<(), ClientInfoError> {
-        let mut buf = [0; crate::legacy::MAX_PDU_SIZE];
-        let mut cursor = WriteCursor::new(&mut buf);
-        Self::encode(self, &mut cursor, character_set)?;
-        let len = cursor.pos();
-        stream.write_all(&buf[..len])?;
         Ok(())
     }
 
