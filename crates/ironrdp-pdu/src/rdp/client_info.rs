@@ -7,8 +7,11 @@ use num_derive::{FromPrimitive, ToPrimitive};
 use num_traits::{FromPrimitive as _, ToPrimitive as _};
 use thiserror::Error;
 
+use crate::cursor::{ReadCursor, WriteCursor};
 use crate::utils::CharacterSet;
-use crate::{try_read_optional, try_write_optional, utils, PduError, PduParsing};
+use crate::{
+    try_read_optional, try_write_optional, utils, PduDecode, PduEncode, PduError, PduParsing, PduResult,
+};
 
 const RECONNECT_COOKIE_LEN: usize = 28;
 const TIMEZONE_INFO_NAME_LEN: usize = 64;
@@ -29,7 +32,6 @@ const SESSION_ID_SIZE: usize = 4;
 const PERFORMANCE_FLAGS_SIZE: usize = 4;
 const RECONNECT_COOKIE_LENGTH_SIZE: usize = 2;
 const BIAS_SIZE: usize = 4;
-const SYSTEM_TIME_SIZE: usize = 16;
 
 /// [2.2.1.11.1.1] Info Packet (TS_INFO_PACKET)
 ///
@@ -391,18 +393,53 @@ pub struct SystemTime {
     pub milliseconds: u16,
 }
 
-impl PduParsing for Option<SystemTime> {
-    type Error = ClientInfoError;
+impl SystemTime {
+    const NAME: &'static str = "SystemTime";
 
-    fn from_buffer(mut stream: impl io::Read) -> Result<Self, Self::Error> {
-        let _year = stream.read_u16::<LittleEndian>()?; // This field MUST be set to zero.
-        let month = stream.read_u16::<LittleEndian>()?;
-        let day_of_week = stream.read_u16::<LittleEndian>()?;
-        let day = stream.read_u16::<LittleEndian>()?;
-        let hour = stream.read_u16::<LittleEndian>()?;
-        let minute = stream.read_u16::<LittleEndian>()?;
-        let second = stream.read_u16::<LittleEndian>()?;
-        let milliseconds = stream.read_u16::<LittleEndian>()?;
+    const FIXED_PART_SIZE: usize = 2 /* Year */ + 2 /* Month */ + 2 /* DoW */ + 2 /* Day */ + 2 /* Hour */ + 2 /* Minute */ + 2 /* Second */ + 2 /* Ms */;
+}
+
+impl PduEncode for Option<SystemTime> {
+    fn encode(&self, dst: &mut WriteCursor<'_>) -> PduResult<()> {
+        ensure_size!(in: dst, size: self.size());
+
+        dst.write_u16(0); // year
+        if let Some(st) = self {
+            dst.write_u16(st.month.to_u16().unwrap());
+            dst.write_u16(st.day_of_week.to_u16().unwrap());
+            dst.write_u16(st.day.to_u16().unwrap());
+            dst.write_u16(st.hour);
+            dst.write_u16(st.minute);
+            dst.write_u16(st.second);
+            dst.write_u16(st.milliseconds);
+        } else {
+            write_padding!(dst, 2 * 7);
+        }
+
+        Ok(())
+    }
+
+    fn name(&self) -> &'static str {
+        SystemTime::NAME
+    }
+
+    fn size(&self) -> usize {
+        SystemTime::FIXED_PART_SIZE
+    }
+}
+
+impl<'de> PduDecode<'de> for Option<SystemTime> {
+    fn decode(src: &mut ReadCursor<'de>) -> PduResult<Self> {
+        ensure_size!(in: src, size: SystemTime::FIXED_PART_SIZE);
+
+        let _year = src.read_u16(); // This field MUST be set to zero.
+        let month = src.read_u16();
+        let day_of_week = src.read_u16();
+        let day = src.read_u16();
+        let hour = src.read_u16();
+        let minute = src.read_u16();
+        let second = src.read_u16();
+        let milliseconds = src.read_u16();
 
         match (
             Month::from_u16(month),
@@ -421,45 +458,9 @@ impl PduParsing for Option<SystemTime> {
             _ => Ok(None),
         }
     }
-
-    fn to_buffer(&self, mut stream: impl io::Write) -> Result<(), Self::Error> {
-        stream.write_u16::<LittleEndian>(0)?; // year
-        match *self {
-            Some(SystemTime {
-                month,
-                day_of_week,
-                day,
-                hour,
-                minute,
-                second,
-                milliseconds,
-            }) => {
-                stream.write_u16::<LittleEndian>(month.to_u16().unwrap())?;
-                stream.write_u16::<LittleEndian>(day_of_week.to_u16().unwrap())?;
-                stream.write_u16::<LittleEndian>(day.to_u16().unwrap())?;
-                stream.write_u16::<LittleEndian>(hour)?;
-                stream.write_u16::<LittleEndian>(minute)?;
-                stream.write_u16::<LittleEndian>(second)?;
-                stream.write_u16::<LittleEndian>(milliseconds)?;
-            }
-            None => {
-                stream.write_u16::<LittleEndian>(0)?;
-                stream.write_u16::<LittleEndian>(0)?;
-                stream.write_u16::<LittleEndian>(0)?;
-                stream.write_u16::<LittleEndian>(0)?;
-                stream.write_u16::<LittleEndian>(0)?;
-                stream.write_u16::<LittleEndian>(0)?;
-                stream.write_u16::<LittleEndian>(0)?;
-            }
-        }
-
-        Ok(())
-    }
-
-    fn buffer_length(&self) -> usize {
-        SYSTEM_TIME_SIZE
-    }
 }
+
+impl_pdu_parsing!(Option<SystemTime>, SystemTime::FIXED_PART_SIZE);
 
 #[repr(u16)]
 #[derive(Debug, Copy, Clone, PartialEq, Eq, FromPrimitive, ToPrimitive)]
