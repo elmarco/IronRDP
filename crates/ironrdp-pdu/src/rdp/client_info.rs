@@ -9,9 +9,7 @@ use thiserror::Error;
 
 use crate::cursor::{ReadCursor, WriteCursor};
 use crate::utils::CharacterSet;
-use crate::{
-    try_read_optional, try_write_optional, utils, PduDecode, PduEncode, PduError, PduErrorKind, PduParsing, PduResult,
-};
+use crate::{utils, PduDecode, PduEncode, PduError, PduParsing, PduResult};
 
 const RECONNECT_COOKIE_LEN: usize = 28;
 const TIMEZONE_INFO_NAME_LEN: usize = 64;
@@ -242,60 +240,40 @@ pub struct ExtendedClientOptionalInfo {
     // other fields are read by RdpVersion::Ten+
 }
 
-impl PduParsing for ExtendedClientOptionalInfo {
-    type Error = ClientInfoError;
+impl ExtendedClientOptionalInfo {
+    const NAME: &'static str = "ExtendedClientOptionalInfo";
+}
 
-    fn from_buffer(mut stream: impl io::Read) -> Result<Self, Self::Error> {
-        let mut optional_data = Self::default();
+impl PduEncode for ExtendedClientOptionalInfo {
+    fn encode(&self, dst: &mut WriteCursor<'_>) -> PduResult<()> {
+        ensure_size!(in: dst, size: self.size());
 
-        optional_data.timezone = match TimezoneInfo::from_buffer(&mut stream) {
-            Ok(v) => Some(v),
-            Err(e) if matches!(e.kind(), PduErrorKind::NotEnoughBytes { .. }) => return Ok(optional_data),
-            Err(e) => return Err(e.into()),
-        };
-        optional_data.session_id = Some(try_read_optional!(stream.read_u32::<LittleEndian>(), optional_data));
-        optional_data.performance_flags = Some(
-            PerformanceFlags::from_bits(try_read_optional!(stream.read_u32::<LittleEndian>(), optional_data))
-                .ok_or(ClientInfoError::InvalidPerformanceFlags)?,
-        );
-
-        let reconnect_cookie_size = try_read_optional!(stream.read_u16::<LittleEndian>(), optional_data);
-        if reconnect_cookie_size != RECONNECT_COOKIE_LEN as u16 && reconnect_cookie_size != 0 {
-            return Err(ClientInfoError::InvalidReconnectCookie);
+        if let Some(ref timezone) = self.timezone {
+            timezone.encode(dst)?;
         }
-        if reconnect_cookie_size == 0 {
-            return Ok(optional_data);
+        if let Some(session_id) = self.session_id {
+            dst.write_u32(session_id);
         }
-
-        let mut reconnect_cookie = [0; RECONNECT_COOKIE_LEN];
-        try_read_optional!(stream.read_exact(&mut reconnect_cookie), optional_data);
-        optional_data.reconnect_cookie = Some(reconnect_cookie);
-
-        try_read_optional!(stream.read_u16::<LittleEndian>(), optional_data); // reserved1
-        try_read_optional!(stream.read_u16::<LittleEndian>(), optional_data); // reserved2
-
-        Ok(optional_data)
-    }
-
-    fn to_buffer(&self, mut stream: impl io::Write) -> Result<(), Self::Error> {
-        try_write_optional!(self.timezone, |value: &TimezoneInfo| value.to_buffer(&mut stream));
-        try_write_optional!(self.session_id, |value: &u32| stream.write_u32::<LittleEndian>(*value));
-        try_write_optional!(self.performance_flags, |value: &PerformanceFlags| {
-            stream.write_u32::<LittleEndian>(value.bits())
-        });
-        if let Some(reconnection_cookie) = self.reconnect_cookie {
-            stream.write_u16::<LittleEndian>(reconnection_cookie.len() as u16)?;
-            stream.write_all(reconnection_cookie.as_ref())?;
+        if let Some(performance_flags) = self.performance_flags {
+            dst.write_u32(performance_flags.bits());
+        }
+        if let Some(reconnect_cookie) = self.reconnect_cookie {
+            dst.write_u16(RECONNECT_COOKIE_LEN as u16);
+            dst.write_array(reconnect_cookie);
         }
 
         Ok(())
     }
 
-    fn buffer_length(&self) -> usize {
+    fn name(&self) -> &'static str {
+        Self::NAME
+    }
+
+    fn size(&self) -> usize {
         let mut size = 0;
 
         if let Some(ref timezone) = self.timezone {
-            size += timezone.buffer_length();
+            size += timezone.size();
         }
         if self.session_id.is_some() {
             size += SESSION_ID_SIZE;
@@ -310,6 +288,51 @@ impl PduParsing for ExtendedClientOptionalInfo {
         size
     }
 }
+
+impl<'de> PduDecode<'de> for ExtendedClientOptionalInfo {
+    fn decode(src: &mut ReadCursor<'de>) -> PduResult<Self> {
+        let mut optional_data = Self::default();
+
+        if src.len() < TimezoneInfo::FIXED_PART_SIZE {
+            return Ok(optional_data);
+        }
+        optional_data.timezone = Some(TimezoneInfo::decode(src)?);
+
+        if src.len() < 4 {
+            return Ok(optional_data);
+        }
+        optional_data.session_id = Some(src.read_u32());
+
+        if src.len() < 4 {
+            return Ok(optional_data);
+        }
+        optional_data.performance_flags = Some(
+            PerformanceFlags::from_bits(src.read_u32())
+                .ok_or(invalid_message_err!("performanceFlags", "invalid performance flags"))?,
+        );
+
+        if src.len() < 2 {
+            return Ok(optional_data);
+        }
+        let reconnect_cookie_size = src.read_u16();
+        if reconnect_cookie_size != RECONNECT_COOKIE_LEN as u16 && reconnect_cookie_size != 0 {
+            return Err(invalid_message_err!("cbAutoReconnectCookie", "invalid cookie size"));
+        }
+        if reconnect_cookie_size != 0 {
+            optional_data.reconnect_cookie = Some(src.read_array());
+        }
+
+        if src.len() < 2 * 2 {
+            return Ok(optional_data);
+        }
+        src.read_u16(); // reserved1
+        src.read_u16(); // reserved2
+
+        Ok(optional_data)
+    }
+}
+
+impl_pdu_parsing_max!(ExtendedClientOptionalInfo);
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct TimezoneInfo {
@@ -390,8 +413,6 @@ impl<'de> PduDecode<'de> for TimezoneInfo {
         })
     }
 }
-
-impl_pdu_parsing!(TimezoneInfo);
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct SystemTime {
