@@ -632,7 +632,7 @@ impl Sequence for ClientConnector {
     }
 }
 
-fn encode_send_data_request<T: PduEncode>(
+pub fn encode_send_data_request<T: PduEncode>(
     initiator_id: u16,
     channel_id: u16,
     user_msg: &T,

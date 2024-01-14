@@ -41,7 +41,7 @@ pub fn pdu_decode(data: &[u8]) {
     let _ = server_license::ServerLicenseRequest::from_buffer(data);
     let _ = server_license::ServerPlatformChallenge::from_buffer(data);
 
-    let _ = vc::ChannelPduHeader::from_buffer(data);
+    let _ = decode::<vc::ChannelPduHeader>(data);
 
     let _ = decode::<fast_path::FastPathHeader>(data);
     let _ = decode::<fast_path::FastPathUpdatePdu<'_>>(data);

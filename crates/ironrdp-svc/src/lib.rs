@@ -21,7 +21,7 @@ use ironrdp_pdu::{assert_obj_safe, mcs, PduResult};
 use pdu::cursor::WriteCursor;
 use pdu::gcc::ChannelDef;
 use pdu::rdp::vc::ChannelControlFlags;
-use pdu::{custom_err, encode_buf, PduEncode, PduParsing};
+use pdu::{decode, encode_buf, PduEncode};
 
 /// The integer type representing a static virtual channel ID.
 pub type StaticChannelId = u16;
@@ -308,8 +308,8 @@ impl ChunkProcessor {
 
     /// Returns whether this was the last chunk based on the flags in the channel header.
     fn process_header(payload: &mut &[u8]) -> PduResult<bool> {
-        let channel_header = ironrdp_pdu::rdp::vc::ChannelPduHeader::from_buffer(payload)
-            .map_err(|e| custom_err!("failed to decode svc channel header", e))?;
+        let channel_header: ironrdp_pdu::rdp::vc::ChannelPduHeader = decode(payload)?;
+
         Ok(channel_header.flags.contains(ChannelControlFlags::FLAG_LAST))
     }
 

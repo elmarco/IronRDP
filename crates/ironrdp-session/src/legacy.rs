@@ -1,9 +1,10 @@
-use ironrdp_connector::legacy::{encode_send_data_request, SendDataIndicationCtx};
+use ironrdp_connector::encode_send_data_request;
+use ironrdp_connector::legacy::SendDataIndicationCtx;
+use ironrdp_pdu::decode;
 use ironrdp_pdu::rdp::vc;
 use ironrdp_pdu::write_buf::WriteBuf;
-use ironrdp_pdu::PduParsing as _;
 
-use crate::{SessionError, SessionResult};
+use crate::{SessionError, SessionErrorExt, SessionResult};
 
 pub fn encode_dvc_message(
     initiator_id: u16,
@@ -43,7 +44,7 @@ pub fn decode_dvc_message(ctx: SendDataIndicationCtx<'_>) -> SessionResult<Dynam
     let mut user_data = ctx.user_data;
 
     // [ vc::ChannelPduHeader | …
-    let channel_header = vc::ChannelPduHeader::from_buffer(&mut user_data)?;
+    let channel_header: vc::ChannelPduHeader = decode(user_data).map_err(SessionError::pdu)?;
     let dvc_data_len = user_data.len();
     debug_assert_eq!(dvc_data_len, channel_header.length as usize);
 
