@@ -194,8 +194,6 @@ bitflags! {
 pub enum FinalizationMessagesError {
     #[error("IO error")]
     IOError(#[from] io::Error),
-    #[error("monitor Data error")]
-    MonitorDataError(#[from] gcc::MonitorDataError),
     #[error("invalid message type field in Synchronize PDU")]
     InvalidMessageType,
     #[error("invalid control action field in Control PDU")]

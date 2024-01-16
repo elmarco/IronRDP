@@ -6,7 +6,7 @@ use num_derive::{FromPrimitive, ToPrimitive};
 use num_traits::{FromPrimitive, ToPrimitive};
 
 use super::{CapabilitySet, Color, GraphicsMessagesError, Point, RDP_GFX_HEADER_SIZE};
-use crate::gcc::{Monitor, MonitorDataError};
+use crate::gcc::Monitor;
 use crate::geometry::InclusiveRectangle;
 use crate::PduParsing;
 
@@ -443,7 +443,7 @@ impl PduParsing for ResetGraphicsPdu {
 
         let monitors = (0..monitor_count)
             .map(|_| Monitor::from_buffer(&mut stream))
-            .collect::<Result<Vec<_>, MonitorDataError>>()?;
+            .collect::<Result<Vec<_>, _>>()?;
 
         let pdu = Self {
             width,

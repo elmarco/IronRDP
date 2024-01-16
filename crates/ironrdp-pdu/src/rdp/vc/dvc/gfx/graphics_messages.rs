@@ -21,7 +21,6 @@ pub use server::{
 };
 
 use super::RDP_GFX_HEADER_SIZE;
-use crate::gcc::MonitorDataError;
 use crate::{PduError, PduParsing};
 
 const CAPABILITY_SET_HEADER_SIZE: usize = 8;
@@ -295,8 +294,6 @@ pub enum GraphicsMessagesError {
     InvalidCodec2Id,
     #[error("invalid pixel format")]
     InvalidPixelFormat,
-    #[error("monitor error")]
-    MonitorError(#[from] MonitorDataError),
     #[error("invalid ResetGraphics PDU width: {} > MAX ({})", actual, max)]
     InvalidResetGraphicsPduWidth { actual: u32, max: u32 },
     #[error("invalid ResetGraphics PDU height: {} > MAX ({})", actual, max)]
