@@ -162,31 +162,47 @@ pub struct Color {
     pub xa: u8,
 }
 
-impl PduParsing for Color {
-    type Error = GraphicsMessagesError;
+impl Color {
+    const NAME: &'static str = "GfxColor";
 
-    fn from_buffer(mut stream: impl io::Read) -> Result<Self, Self::Error> {
-        let b = stream.read_u8()?;
-        let g = stream.read_u8()?;
-        let r = stream.read_u8()?;
-        let xa = stream.read_u8()?;
+    const FIXED_PART_SIZE: usize = 4 /* BGRA */;
+}
 
-        Ok(Self { b, g, r, xa })
-    }
+impl PduEncode for Color {
+    fn encode(&self, dst: &mut WriteCursor<'_>) -> PduResult<()> {
+        ensure_fixed_part_size!(in: dst);
 
-    fn to_buffer(&self, mut stream: impl io::Write) -> Result<(), Self::Error> {
-        stream.write_u8(self.b)?;
-        stream.write_u8(self.g)?;
-        stream.write_u8(self.r)?;
-        stream.write_u8(self.xa)?;
+        dst.write_u8(self.b);
+        dst.write_u8(self.g);
+        dst.write_u8(self.r);
+        dst.write_u8(self.xa);
 
         Ok(())
     }
 
-    fn buffer_length(&self) -> usize {
-        4
+    fn name(&self) -> &'static str {
+        Self::NAME
+    }
+
+    fn size(&self) -> usize {
+        Self::FIXED_PART_SIZE
     }
 }
+
+impl<'de> PduDecode<'de> for Color {
+    fn decode(src: &mut ReadCursor<'de>) -> PduResult<Self> {
+        ensure_fixed_part_size!(in: src);
+
+        let b = src.read_u8();
+        let g = src.read_u8();
+        let r = src.read_u8();
+        let xa = src.read_u8();
+
+        Ok(Self { b, g, r, xa })
+    }
+}
+
+impl_pdu_parsing!(Color);
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Point {
