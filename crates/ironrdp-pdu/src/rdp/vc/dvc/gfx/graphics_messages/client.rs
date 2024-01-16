@@ -16,7 +16,7 @@ impl PduParsing for CapabilitiesAdvertisePdu {
 
         let capabilities = (0..capabilities_count)
             .map(|_| CapabilitySet::from_buffer(&mut stream))
-            .collect::<Result<Vec<_>, Self::Error>>()?;
+            .collect::<Result<Vec<_>, _>>()?;
 
         Ok(Self(capabilities))
     }

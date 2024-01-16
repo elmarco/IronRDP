@@ -8,7 +8,7 @@ use num_traits::{FromPrimitive, ToPrimitive};
 use super::{CapabilitySet, Color, GraphicsMessagesError, Point, RDP_GFX_HEADER_SIZE};
 use crate::gcc::Monitor;
 use crate::geometry::InclusiveRectangle;
-use crate::PduParsing;
+use crate::{PduError, PduParsing};
 
 pub(crate) const RESET_GRAPHICS_PDU_SIZE: usize = 340;
 
@@ -688,7 +688,7 @@ impl PduParsing for EndFramePdu {
 pub struct CapabilitiesConfirmPdu(pub CapabilitySet);
 
 impl PduParsing for CapabilitiesConfirmPdu {
-    type Error = GraphicsMessagesError;
+    type Error = PduError;
 
     fn from_buffer(mut stream: impl io::Read) -> Result<Self, Self::Error> {
         let capability_set = CapabilitySet::from_buffer(&mut stream)?;

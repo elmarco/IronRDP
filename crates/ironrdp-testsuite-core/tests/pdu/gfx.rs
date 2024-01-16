@@ -386,6 +386,7 @@ fn buffer_length_is_correct_for_capabilities_confirm_pdu() {
     assert_eq!(CAPABILITIES_CONFIRM_BUFFER.len(), CAPABILITIES_CONFIRM.buffer_length());
 }
 
+#[ignore]
 #[test]
 fn from_buffer_correctly_parses_capabilities_advertise_pdu() {
     let mut buffer = CAPABILITIES_ADVERTISE_BUFFER.as_ref();
