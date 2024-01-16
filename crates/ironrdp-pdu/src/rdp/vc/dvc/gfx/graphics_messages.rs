@@ -21,7 +21,8 @@ pub use server::{
 };
 
 use super::RDP_GFX_HEADER_SIZE;
-use crate::{PduError, PduParsing};
+use crate::cursor::{ReadCursor, WriteCursor};
+use crate::{PduDecode, PduEncode, PduError, PduParsing, PduResult};
 
 const CAPABILITY_SET_HEADER_SIZE: usize = 8;
 
@@ -193,27 +194,43 @@ pub struct Point {
     pub y: u16,
 }
 
-impl PduParsing for Point {
-    type Error = GraphicsMessagesError;
+impl Point {
+    const NAME: &'static str = "GfxPoint";
 
-    fn from_buffer(mut stream: impl io::Read) -> Result<Self, Self::Error> {
-        let x = stream.read_u16::<LittleEndian>()?;
-        let y = stream.read_u16::<LittleEndian>()?;
+    const FIXED_PART_SIZE: usize = 2 /* X */ + 2 /* Y */;
+}
 
-        Ok(Self { x, y })
-    }
+impl PduEncode for Point {
+    fn encode(&self, dst: &mut WriteCursor<'_>) -> PduResult<()> {
+        ensure_fixed_part_size!(in: dst);
 
-    fn to_buffer(&self, mut stream: impl io::Write) -> Result<(), Self::Error> {
-        stream.write_u16::<LittleEndian>(self.x)?;
-        stream.write_u16::<LittleEndian>(self.y)?;
+        dst.write_u16(self.x);
+        dst.write_u16(self.y);
 
         Ok(())
     }
 
-    fn buffer_length(&self) -> usize {
-        4
+    fn name(&self) -> &'static str {
+        Self::NAME
+    }
+
+    fn size(&self) -> usize {
+        Self::FIXED_PART_SIZE
     }
 }
+
+impl<'de> PduDecode<'de> for Point {
+    fn decode(src: &mut ReadCursor<'de>) -> PduResult<Self> {
+        ensure_fixed_part_size!(in: src);
+
+        let x = src.read_u16();
+        let y = src.read_u16();
+
+        Ok(Self { x, y })
+    }
+}
+
+impl_pdu_parsing!(Point);
 
 #[repr(u32)]
 #[derive(Debug, Copy, Clone, PartialEq, Eq, FromPrimitive, ToPrimitive)]

@@ -223,7 +223,7 @@ impl PduParsing for SurfaceToSurfacePdu {
 
         let destination_points = (0..destination_points_count)
             .map(|_| Point::from_buffer(&mut stream))
-            .collect::<Result<Vec<_>, Self::Error>>()?;
+            .collect::<Result<Vec<_>, _>>()?;
 
         Ok(Self {
             source_surface_id,
@@ -308,7 +308,7 @@ impl PduParsing for CacheToSurfacePdu {
 
         let destination_points = (0..destination_points_count)
             .map(|_| Point::from_buffer(&mut stream))
-            .collect::<Result<Vec<_>, Self::Error>>()?;
+            .collect::<Result<Vec<_>, _>>()?;
 
         Ok(Self {
             cache_slot,
