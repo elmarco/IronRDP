@@ -9,7 +9,7 @@ use bitflags::bitflags;
 use thiserror::Error;
 
 use crate::cursor::{ReadCursor, WriteCursor};
-use crate::{PduDecode, PduEncode, PduResult};
+use crate::{PduDecode, PduEncode, PduError, PduResult};
 
 const CHANNEL_PDU_HEADER_SIZE: usize = 8;
 
@@ -99,6 +99,14 @@ pub enum ChannelError {
     InvalidDvcMessageSize,
     #[error("invalid DVC total message size: actual ({actual}) > expected ({expected})")]
     InvalidDvcTotalMessageSize { actual: usize, expected: usize },
+    #[error("PDU error: {0}")]
+    Pdu(PduError),
+}
+
+impl From<PduError> for ChannelError {
+    fn from(e: PduError) -> Self {
+        Self::Pdu(e)
+    }
 }
 
 impl From<ChannelError> for io::Error {
