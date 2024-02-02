@@ -7,7 +7,7 @@ use num_traits::{FromPrimitive, ToPrimitive};
 
 use super::ChannelError;
 use crate::cursor::{ReadCursor, WriteCursor};
-use crate::{PduParsing, PduResult};
+use crate::{PduDecode, PduEncode, PduParsing, PduResult};
 
 #[cfg(test)]
 mod tests;
@@ -278,14 +278,43 @@ struct Header {
     pdu_type: PduType,   // 4 bit
 }
 
-impl PduParsing for Header {
-    type Error = ChannelError;
+impl Header {
+    const NAME: &'static str = "DvcHeader";
 
-    fn from_buffer(mut stream: impl io::Read) -> Result<Self, Self::Error> {
-        let dvc_header = stream.read_u8()?;
+    const FIXED_PART_SIZE: usize = 1 /* header */;
+}
+
+impl PduEncode for Header {
+    fn encode(&self, dst: &mut WriteCursor<'_>) -> PduResult<()> {
+        ensure_fixed_part_size!(in: dst);
+
+        let mut dvc_header: u8 = 0;
+        dvc_header.set_bits(0..2, self.channel_id_type);
+        dvc_header.set_bits(2..4, self.pdu_dependent);
+        dvc_header.set_bits(4..8, self.pdu_type.to_u8().unwrap());
+        dst.write_u8(dvc_header);
+
+        Ok(())
+    }
+
+    fn name(&self) -> &'static str {
+        Self::NAME
+    }
+
+    fn size(&self) -> usize {
+        Self::FIXED_PART_SIZE
+    }
+}
+
+impl<'de> PduDecode<'de> for Header {
+    fn decode(src: &mut ReadCursor<'de>) -> PduResult<Self> {
+        ensure_fixed_part_size!(in: src);
+
+        let dvc_header = src.read_u8();
         let channel_id_type = dvc_header.get_bits(0..2);
         let pdu_dependent = dvc_header.get_bits(2..4);
-        let pdu_type = PduType::from_u8(dvc_header.get_bits(4..8)).ok_or(ChannelError::InvalidDvcPduType)?;
+        let pdu_type = PduType::from_u8(dvc_header.get_bits(4..8))
+            .ok_or_else(|| invalid_message_err!("DvcHeader", "invalid Cmd"))?;
 
         Ok(Self {
             channel_id_type,
@@ -293,18 +322,6 @@ impl PduParsing for Header {
             pdu_type,
         })
     }
-
-    fn to_buffer(&self, mut stream: impl io::Write) -> Result<(), Self::Error> {
-        let mut dvc_header: u8 = 0;
-        dvc_header.set_bits(0..2, self.channel_id_type);
-        dvc_header.set_bits(2..4, self.pdu_dependent);
-        dvc_header.set_bits(4..8, self.pdu_type.to_u8().unwrap());
-        stream.write_u8(dvc_header)?;
-
-        Ok(())
-    }
-
-    fn buffer_length(&self) -> usize {
-        HEADER_SIZE
-    }
 }
+
+impl_pdu_parsing!(Header);

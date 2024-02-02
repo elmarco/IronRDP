@@ -20,7 +20,7 @@ lazy_static! {
 fn from_buffer_parsing_for_dvc_header_with_invalid_pdu_type_fails() {
     let invalid_header: u8 = 0xA0;
     match Header::from_buffer([invalid_header].as_ref()) {
-        Err(ChannelError::InvalidDvcPduType) => (),
+        Err(_) => (),
         res => panic!("Expected InvalidDvcPduType error, got: {res:?}"),
     };
 }
