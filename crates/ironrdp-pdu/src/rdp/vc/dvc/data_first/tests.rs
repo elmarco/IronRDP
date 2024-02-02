@@ -2,6 +2,7 @@ use lazy_static::lazy_static;
 
 use super::*;
 use crate::rdp::vc::dvc::ClientPdu;
+use crate::PduErrorKind;
 
 const DVC_TEST_CHANNEL_ID_U8: u32 = 0x03;
 const DVC_TEST_DATA_LENGTH: u32 = 0x0000_0C7B;
@@ -144,8 +145,8 @@ fn from_buffer_parsing_for_dvc_data_first_pdu_with_invalid_message_size_fails() 
         FieldType::U16,
         PDU_WITH_DATA_MAX_SIZE,
     ) {
-        Err(ChannelError::InvalidDvcMessageSize) => (),
-        res => panic!("Expected InvalidDvcMessageSize error, got: {res:?}"),
+        Err(e) if matches!(e.kind(), PduErrorKind::InvalidMessage { .. }) => (),
+        res => panic!("Expected InvalidMessage error, got: {res:?}"),
     };
 }
 
@@ -157,8 +158,8 @@ fn from_buffer_parsing_for_dvc_data_first_pdu_with_invalid_total_message_size_fa
         FieldType::U8,
         DVC_DATA_FIRST_WITH_INVALID_TOTAL_MESSAGE_SIZE_BUFFER_SIZE,
     ) {
-        Err(ChannelError::InvalidDvcTotalMessageSize { .. }) => (),
-        res => panic!("Expected InvalidDvcTotalMessageSize error, got: {res:?}"),
+        Err(e) if matches!(e.kind(), PduErrorKind::NotEnoughBytes { .. }) => (),
+        res => panic!("Expected NotEnoughBytes error, got: {res:?}"),
     };
 }
 
