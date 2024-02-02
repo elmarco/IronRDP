@@ -1,8 +1,9 @@
 use ironrdp_connector::encode_send_data_request;
 use ironrdp_connector::legacy::SendDataIndicationCtx;
-use ironrdp_pdu::decode;
+use ironrdp_pdu::cursor::ReadCursor;
 use ironrdp_pdu::rdp::vc;
 use ironrdp_pdu::write_buf::WriteBuf;
+use ironrdp_pdu::{decode, encode_buf, PduEncode};
 
 use crate::{SessionError, SessionErrorExt, SessionResult};
 
@@ -11,9 +12,9 @@ pub fn encode_dvc_message(
     drdynvc_id: u16,
     dvc_pdu: vc::dvc::ClientPdu,
     dvc_data: &[u8],
-    mut buf: &mut WriteBuf,
+    buf: &mut WriteBuf,
 ) -> SessionResult<()> {
-    let dvc_length = dvc_pdu.buffer_length() + dvc_data.len();
+    let dvc_length = dvc_pdu.size() + dvc_data.len();
 
     let channel_header = vc::ChannelPduHeader {
         length: u32::try_from(dvc_length).expect("dvc message size"),
@@ -25,7 +26,7 @@ pub fn encode_dvc_message(
     debug_assert_eq!(written, buf.filled_len());
 
     // … | dvc::ClientPdu | …
-    dvc_pdu.to_buffer(&mut buf).map_err(SessionError::pdu)?;
+    encode_buf(&dvc_pdu, buf).map_err(SessionError::pdu)?;
 
     // … | DvcData ]
     buf.write_slice(dvc_data);
@@ -41,7 +42,7 @@ pub struct DynamicChannelCtx<'a> {
 }
 
 pub fn decode_dvc_message(ctx: SendDataIndicationCtx<'_>) -> SessionResult<DynamicChannelCtx<'_>> {
-    let mut user_data = ctx.user_data;
+    let user_data = ctx.user_data;
 
     // [ vc::ChannelPduHeader | …
     let channel_header: vc::ChannelPduHeader = decode(user_data).map_err(SessionError::pdu)?;
@@ -49,10 +50,11 @@ pub fn decode_dvc_message(ctx: SendDataIndicationCtx<'_>) -> SessionResult<Dynam
     debug_assert_eq!(dvc_data_len, channel_header.length as usize);
 
     // … | dvc::ServerPdu | …
-    let dvc_pdu = vc::dvc::ServerPdu::from_buffer(&mut user_data, dvc_data_len).map_err(SessionError::pdu)?;
+    let mut cur = ReadCursor::new(user_data);
+    let dvc_pdu = vc::dvc::ServerPdu::decode(&mut cur, dvc_data_len).map_err(SessionError::pdu)?;
 
     // … | DvcData ]
-    let dvc_data = user_data;
+    let dvc_data = cur.remaining();
 
     Ok(DynamicChannelCtx { dvc_pdu, dvc_data })
 }
