@@ -25,7 +25,7 @@ pub fn encode_dvc_message(
     debug_assert_eq!(written, buf.filled_len());
 
     // … | dvc::ClientPdu | …
-    dvc_pdu.to_buffer(&mut buf)?;
+    dvc_pdu.to_buffer(&mut buf).map_err(SessionError::pdu)?;
 
     // … | DvcData ]
     buf.write_slice(dvc_data);

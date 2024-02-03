@@ -15,34 +15,6 @@ pub struct DataFirstPdu {
 }
 
 impl DataFirstPdu {
-    pub(crate) fn from_buffer(
-        mut stream: impl std::io::Read,
-        channel_id_type: FieldType,
-        total_data_size_type: FieldType,
-        data_size: usize,
-    ) -> Result<Self, crate::PduError> {
-        let mut buf = [0; crate::legacy::MAX_PDU_SIZE];
-        let len = match stream.read(&mut buf) {
-            Ok(len) => len,
-            Err(e) if e.kind() == std::io::ErrorKind::UnexpectedEof => {
-                return Err(not_enough_bytes_err!(0, crate::legacy::MAX_PDU_SIZE));
-            }
-            Err(e) => return Err(custom_err!(e)),
-        };
-        let mut cur = ReadCursor::new(&buf[0..len]);
-        Self::decode(&mut cur, channel_id_type, total_data_size_type, data_size)
-    }
-
-    pub(crate) fn to_buffer(&self, mut stream: impl std::io::Write) -> Result<(), crate::PduError> {
-        to_buffer!(self, stream, size: self.size())
-    }
-
-    pub(crate) fn buffer_length(&self) -> usize {
-        self.size()
-    }
-}
-
-impl DataFirstPdu {
     const NAME: &'static str = "DvcDataFirstPdu";
 
     pub fn new(channel_id: u32, total_data_size: u32, data_size: usize) -> Self {
