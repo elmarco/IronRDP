@@ -18,34 +18,6 @@ pub struct CreateRequestPdu {
 }
 
 impl CreateRequestPdu {
-    pub(crate) fn from_buffer(
-        mut stream: impl std::io::Read,
-        channel_id_type: FieldType,
-        data_size: usize,
-    ) -> Result<Self, crate::PduError> {
-        let mut buf = [0; crate::legacy::MAX_PDU_SIZE];
-        let len = match stream.read(&mut buf) {
-            // if not enough data is read, decode will through NotEnoughBytes
-            Ok(len) => len,
-            Err(e) if e.kind() == std::io::ErrorKind::UnexpectedEof => {
-                return Err(not_enough_bytes_err!(0, crate::legacy::MAX_PDU_SIZE));
-            }
-            Err(e) => return Err(custom_err!(e)),
-        };
-        let mut cur = ReadCursor::new(&buf[0..len]);
-        Self::decode(&mut cur, channel_id_type, data_size)
-    }
-
-    pub(crate) fn to_buffer(&self, mut stream: impl std::io::Write) -> Result<(), crate::PduError> {
-        to_buffer!(self, stream, size: crate::legacy::MAX_PDU_SIZE)
-    }
-
-    pub(crate) fn buffer_length(&self) -> usize {
-        self.size()
-    }
-}
-
-impl CreateRequestPdu {
     const NAME: &'static str = "DvcCreateRequestPdu";
 
     pub fn new(channel_id: u32, channel_name: String) -> Self {

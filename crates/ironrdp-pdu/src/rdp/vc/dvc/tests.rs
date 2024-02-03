@@ -1,6 +1,7 @@
 use lazy_static::lazy_static;
 
 use super::*;
+use crate::PduErrorKind;
 
 const DVC_HEADER_BUFFER: [u8; HEADER_SIZE] = [0x11];
 const DVC_HEADER_WITH_INVALID_ID_LENGTH_TYPE_BUFFER: [u8; HEADER_SIZE] = [0x13];
@@ -63,8 +64,9 @@ fn from_buffer_parsing_for_client_dvc_pdu_with_invalid_id_length_type_fails() {
 
 #[test]
 fn from_buffer_parsing_for_server_dvc_pdu_with_invalid_id_length_type_fails() {
-    match ServerPdu::from_buffer(DVC_HEADER_WITH_INVALID_ID_LENGTH_TYPE_BUFFER.as_ref(), HEADER_SIZE) {
-        Err(ChannelError::InvalidDVChannelIdLength) => (),
+    let mut cur = ReadCursor::new(DVC_HEADER_WITH_INVALID_ID_LENGTH_TYPE_BUFFER.as_ref());
+    match ServerPdu::decode(&mut cur, HEADER_SIZE) {
+        Err(e) if matches!(e.kind(), PduErrorKind::InvalidMessage { .. }) => (),
         res => panic!("Expected InvalidDVChannelIdLength error, got: {res:?}"),
     };
 }

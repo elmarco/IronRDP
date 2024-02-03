@@ -49,7 +49,7 @@ pub fn decode_dvc_message(ctx: SendDataIndicationCtx<'_>) -> SessionResult<Dynam
     debug_assert_eq!(dvc_data_len, channel_header.length as usize);
 
     // … | dvc::ServerPdu | …
-    let dvc_pdu = vc::dvc::ServerPdu::from_buffer(&mut user_data, dvc_data_len)?;
+    let dvc_pdu = vc::dvc::ServerPdu::from_buffer(&mut user_data, dvc_data_len).map_err(SessionError::pdu)?;
 
     // … | DvcData ]
     let dvc_data = user_data;
