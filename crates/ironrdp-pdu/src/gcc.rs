@@ -33,9 +33,7 @@ pub use self::monitor_data::{
 pub use self::monitor_extended_data::{
     ClientMonitorExtendedData, ExtendedMonitorInfo, MonitorExtendedDataError, MonitorOrientation,
 };
-pub use self::multi_transport_channel_data::{
-    MultiTransportChannelData, MultiTransportChannelDataError, MultiTransportFlags,
-};
+pub use self::multi_transport_channel_data::{MultiTransportChannelData, MultiTransportFlags};
 pub use self::network_data::{
     ChannelDef, ChannelName, ChannelOptions, ClientNetworkData, NetworkDataError, ServerNetworkData,
 };
@@ -377,8 +375,6 @@ pub enum GccError {
     NetworkError(#[from] NetworkDataError),
     #[error("cluster data block error")]
     ClusterError(#[from] ClusterDataError),
-    #[error("multi-transport channel data block error")]
-    MultiTransportChannelError(#[from] MultiTransportChannelDataError),
     #[error("monitor extended data block error")]
     MonitorExtendedError(#[from] MonitorExtendedDataError),
     #[error("invalid GCC block type")]
