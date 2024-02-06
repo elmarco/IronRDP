@@ -1,15 +1,12 @@
-use std::io;
-
 use bitflags::bitflags;
-use byteorder::{LittleEndian, ReadBytesExt, WriteBytesExt};
 use num_derive::{FromPrimitive, ToPrimitive};
 use num_traits::{FromPrimitive, ToPrimitive};
 use tap::Pipe as _;
 
-use super::{CoreDataError, RdpVersion, VERSION_SIZE};
+use super::{RdpVersion, VERSION_SIZE};
 use crate::cursor::{ReadCursor, WriteCursor};
 use crate::nego::SecurityProtocol;
-use crate::{utils, PduDecode, PduEncode, PduParsing, PduResult};
+use crate::{utils, PduDecode, PduEncode, PduResult};
 
 pub const IME_FILE_NAME_SIZE: usize = 64;
 
@@ -60,6 +57,21 @@ pub struct ClientCoreData {
 }
 
 impl ClientCoreData {
+    const NAME: &'static str = "ClientCoreData";
+
+    const FIXED_PART_SIZE: usize = VERSION_SIZE
+        + DESKTOP_WIDTH_SIZE
+        + DESKTOP_HEIGHT_SIZE
+        + COLOR_DEPTH_SIZE
+        + SEC_ACCESS_SEQUENCE_SIZE
+        + KEYBOARD_LAYOUT_SIZE
+        + CLIENT_BUILD_SIZE
+        + CLIENT_NAME_SIZE
+        + KEYBOARD_TYPE_SIZE
+        + KEYBOARD_SUB_TYPE_SIZE
+        + KEYBOARD_FUNCTIONAL_KEYS_COUNT_SIZE
+        + IME_FILE_NAME_SIZE;
+
     pub fn client_color_depth(&self) -> ClientColorDepth {
         if let Some(high_color_depth) = self.optional_data.high_color_depth {
             if let Some(early_capability_flags) = self.optional_data.early_capability_flags {
@@ -79,44 +91,78 @@ impl ClientCoreData {
     }
 }
 
-impl PduParsing for ClientCoreData {
-    type Error = CoreDataError;
+impl PduEncode for ClientCoreData {
+    fn encode(&self, dst: &mut WriteCursor<'_>) -> PduResult<()> {
+        ensure_size!(in: dst, size: self.size());
 
-    fn from_buffer(mut buffer: impl io::Read) -> Result<Self, Self::Error> {
-        let version = buffer.read_u32::<LittleEndian>()?.pipe(RdpVersion);
-        let desktop_width = buffer.read_u16::<LittleEndian>()?;
-        let desktop_height = buffer.read_u16::<LittleEndian>()?;
-        let color_depth = buffer
-            .read_u16::<LittleEndian>()?
+        let mut client_name_dst = utils::to_utf16_bytes(self.client_name.as_ref());
+        client_name_dst.resize(CLIENT_NAME_SIZE - 2, 0);
+        let mut ime_file_name_dst = utils::to_utf16_bytes(self.ime_file_name.as_ref());
+        ime_file_name_dst.resize(IME_FILE_NAME_SIZE - 2, 0);
+
+        dst.write_u32(self.version.0);
+        dst.write_u16(self.desktop_width);
+        dst.write_u16(self.desktop_height);
+        dst.write_u16(self.color_depth.to_u16().unwrap());
+        dst.write_u16(self.sec_access_sequence.to_u16().unwrap());
+        dst.write_u32(self.keyboard_layout);
+        dst.write_u32(self.client_build);
+        dst.write_slice(client_name_dst.as_ref());
+        dst.write_u16(0); // client name UTF-16 null terminator
+        dst.write_u32(self.keyboard_type.to_u32().unwrap());
+        dst.write_u32(self.keyboard_subtype);
+        dst.write_u32(self.keyboard_functional_keys_count);
+        dst.write_slice(ime_file_name_dst.as_ref());
+        dst.write_u16(0); // ime file name UTF-16 null terminator
+
+        self.optional_data.encode(dst)
+    }
+
+    fn name(&self) -> &'static str {
+        Self::NAME
+    }
+
+    fn size(&self) -> usize {
+        Self::FIXED_PART_SIZE + self.optional_data.size()
+    }
+}
+
+impl<'de> PduDecode<'de> for ClientCoreData {
+    fn decode(src: &mut ReadCursor<'de>) -> PduResult<Self> {
+        ensure_fixed_part_size!(in: src);
+
+        let version = src.read_u32().pipe(RdpVersion);
+        let desktop_width = src.read_u16();
+        let desktop_height = src.read_u16();
+        let color_depth = src
+            .read_u16()
             .pipe(ColorDepth::from_u16)
-            .ok_or(CoreDataError::InvalidColorDepth)?;
-        let sec_access_sequence = buffer
-            .read_u16::<LittleEndian>()?
+            .ok_or_else(|| invalid_message_err!("colorDepth", "invalid color depth"))?;
+        let sec_access_sequence = src
+            .read_u16()
             .pipe(SecureAccessSequence::from_u16)
-            .ok_or(CoreDataError::InvalidSecureAccessSequence)?;
-        let keyboard_layout = buffer.read_u32::<LittleEndian>()?;
-        let client_build = buffer.read_u32::<LittleEndian>()?;
+            .ok_or_else(|| invalid_message_err!("secAccessSequence", "invalid secure access sequence"))?;
+        let keyboard_layout = src.read_u32();
+        let client_build = src.read_u32();
 
-        let mut client_name_buffer = [0; CLIENT_NAME_SIZE];
-        buffer.read_exact(&mut client_name_buffer)?;
-        let client_name = utils::from_utf16_bytes(client_name_buffer.as_ref())
+        let client_name_buffer = src.read_slice(CLIENT_NAME_SIZE);
+        let client_name = utils::from_utf16_bytes(client_name_buffer)
             .trim_end_matches('\u{0}')
             .into();
 
-        let keyboard_type = buffer
-            .read_u32::<LittleEndian>()?
+        let keyboard_type = src
+            .read_u32()
             .pipe(KeyboardType::from_u32)
-            .ok_or(CoreDataError::InvalidKeyboardType)?;
-        let keyboard_subtype = buffer.read_u32::<LittleEndian>()?;
-        let keyboard_functional_keys_count = buffer.read_u32::<LittleEndian>()?;
+            .ok_or_else(|| invalid_message_err!("keyboardType", "invalid keyboard type"))?;
+        let keyboard_subtype = src.read_u32();
+        let keyboard_functional_keys_count = src.read_u32();
 
-        let mut ime_file_name_buffer = [0; IME_FILE_NAME_SIZE];
-        buffer.read_exact(&mut ime_file_name_buffer)?;
-        let ime_file_name = utils::from_utf16_bytes(ime_file_name_buffer.as_ref())
+        let ime_file_name_buffer = src.read_slice(IME_FILE_NAME_SIZE);
+        let ime_file_name = utils::from_utf16_bytes(ime_file_name_buffer)
             .trim_end_matches('\u{0}')
             .into();
 
-        let optional_data = ClientCoreOptionalData::from_buffer(&mut buffer)?;
+        let optional_data = ClientCoreOptionalData::decode(src)?;
 
         Ok(Self {
             version,
@@ -134,47 +180,9 @@ impl PduParsing for ClientCoreData {
             optional_data,
         })
     }
-
-    fn to_buffer(&self, mut buffer: impl io::Write) -> Result<(), Self::Error> {
-        let mut client_name_buffer = utils::to_utf16_bytes(self.client_name.as_ref());
-        client_name_buffer.resize(CLIENT_NAME_SIZE - 2, 0);
-        let mut ime_file_name_buffer = utils::to_utf16_bytes(self.ime_file_name.as_ref());
-        ime_file_name_buffer.resize(IME_FILE_NAME_SIZE - 2, 0);
-
-        buffer.write_u32::<LittleEndian>(self.version.0)?;
-        buffer.write_u16::<LittleEndian>(self.desktop_width)?;
-        buffer.write_u16::<LittleEndian>(self.desktop_height)?;
-        buffer.write_u16::<LittleEndian>(self.color_depth.to_u16().unwrap())?;
-        buffer.write_u16::<LittleEndian>(self.sec_access_sequence.to_u16().unwrap())?;
-        buffer.write_u32::<LittleEndian>(self.keyboard_layout)?;
-        buffer.write_u32::<LittleEndian>(self.client_build)?;
-        buffer.write_all(client_name_buffer.as_ref())?;
-        buffer.write_u16::<LittleEndian>(0)?; // client name UTF-16 null terminator
-        buffer.write_u32::<LittleEndian>(self.keyboard_type.to_u32().unwrap())?;
-        buffer.write_u32::<LittleEndian>(self.keyboard_subtype)?;
-        buffer.write_u32::<LittleEndian>(self.keyboard_functional_keys_count)?;
-        buffer.write_all(ime_file_name_buffer.as_ref())?;
-        buffer.write_u16::<LittleEndian>(0)?; // ime file name UTF-16 null terminator
-
-        Ok(self.optional_data.to_buffer(&mut buffer)?)
-    }
-
-    fn buffer_length(&self) -> usize {
-        VERSION_SIZE
-            + DESKTOP_WIDTH_SIZE
-            + DESKTOP_HEIGHT_SIZE
-            + COLOR_DEPTH_SIZE
-            + SEC_ACCESS_SEQUENCE_SIZE
-            + KEYBOARD_LAYOUT_SIZE
-            + CLIENT_BUILD_SIZE
-            + CLIENT_NAME_SIZE
-            + KEYBOARD_TYPE_SIZE
-            + KEYBOARD_SUB_TYPE_SIZE
-            + KEYBOARD_FUNCTIONAL_KEYS_COUNT_SIZE
-            + IME_FILE_NAME_SIZE
-            + self.optional_data.buffer_length()
-    }
 }
+
+impl_pdu_parsing_max!(ClientCoreData);
 
 /// TS_UD_CS_CORE (optional part)
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
@@ -399,8 +407,6 @@ impl<'de> PduDecode<'de> for ClientCoreOptionalData {
         Ok(optional_data)
     }
 }
-
-impl_pdu_parsing_max!(ClientCoreOptionalData);
 
 #[derive(Debug, Copy, Clone, PartialEq, Eq)]
 pub enum ClientColorDepth {

@@ -5,7 +5,7 @@ use num_derive::{FromPrimitive, ToPrimitive};
 use num_traits::{FromPrimitive, ToPrimitive};
 use thiserror::Error;
 
-use crate::{PduError, PduParsing};
+use crate::{decode, PduError, PduParsing};
 
 pub mod conference_create;
 
@@ -106,9 +106,7 @@ impl PduParsing for ClientGccBlocks {
                 ClientGccType::ClusterData => {
                     cluster = Some(ClientClusterData::from_buffer(user_header.block_data.as_slice())?)
                 }
-                ClientGccType::MonitorData => {
-                    monitor = Some(ClientMonitorData::from_buffer(user_header.block_data.as_slice())?)
-                }
+                ClientGccType::MonitorData => monitor = Some(decode(user_header.block_data.as_slice())?),
                 ClientGccType::MessageChannelData => {
                     message_channel = Some(ClientMessageChannelData::from_buffer(
                         user_header.block_data.as_slice(),
