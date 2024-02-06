@@ -1,6 +1,6 @@
 use ironrdp_pdu::gcc::conference_create::*;
 use ironrdp_pdu::gcc::*;
-use ironrdp_pdu::PduParsing as _;
+use ironrdp_pdu::{decode, encode_vec, PduErrorKind, PduParsing as _};
 use ironrdp_testsuite_core::cluster_data::*;
 use ironrdp_testsuite_core::conference_create::*;
 use ironrdp_testsuite_core::core_data::*;
@@ -826,8 +826,8 @@ fn from_buffer_correctly_parses_server_security_data_with_all_fields() {
 fn from_buffer_server_security_data_fails_with_invalid_server_random_length() {
     let buffer = SERVER_SECURITY_DATA_WITH_INVALID_SERVER_RANDOM_BUFFER;
 
-    match ServerSecurityData::from_buffer(buffer.as_slice()) {
-        Err(SecurityDataError::InvalidServerRandomLen(_)) => (),
+    match decode::<ServerSecurityData>(buffer.as_slice()) {
+        Err(e) if matches!(e.kind(), PduErrorKind::InvalidMessage { .. }) => (),
         res => panic!("Expected the invalid server random length error, got: {res:?}"),
     };
 }
@@ -854,9 +854,8 @@ fn to_buffer_correctly_serializes_server_security_data_with_optional_fields() {
 fn to_buffer_server_security_data_fails_on_mismatch_of_required_and_optional_fields() {
     let security_data = SERVER_SECURITY_DATA_WITH_MISMATCH_OF_REQUIRED_AND_OPTIONAL_FIELDS.clone();
 
-    let mut buf = Vec::new();
-    match security_data.to_buffer(&mut buf) {
-        Err(SecurityDataError::InvalidInput(_)) => (),
+    match encode_vec(&security_data) {
+        Err(e) if matches!(e.kind(), PduErrorKind::InvalidMessage { .. }) => (),
         res => panic!("Expected the invalid input error, got: {res:?}"),
     };
 }
