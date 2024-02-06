@@ -54,7 +54,9 @@ impl DynamicChannelDataHandler for Handler {
                 });
                 debug!("Sending GFX PDU: {:?}", client_pdu);
                 client_pdu_buffer.reserve(client_pdu_buffer.len() + client_pdu.buffer_length());
-                client_pdu.to_buffer(&mut client_pdu_buffer)?;
+                client_pdu
+                    .to_buffer(&mut client_pdu_buffer)
+                    .map_err(SessionError::pdu)?;
             } else {
                 // Handle the normal PDU
             }
@@ -66,7 +68,9 @@ impl DynamicChannelDataHandler for Handler {
 
                 if let Some(client_pdu) = client_pdu {
                     client_pdu_buffer.reserve(client_pdu_buffer.len() + client_pdu.buffer_length());
-                    client_pdu.to_buffer(&mut client_pdu_buffer)?;
+                    client_pdu
+                        .to_buffer(&mut client_pdu_buffer)
+                        .map_err(SessionError::pdu)?;
                 }
             }
         }
@@ -196,7 +200,9 @@ pub(crate) fn create_capabilities_advertise(graphics_config: &Option<GraphicsCon
     info!(?capabilities);
     let capabilities_advertise = ClientPdu::CapabilitiesAdvertise(CapabilitiesAdvertisePdu(capabilities));
     let mut capabilities_advertise_buffer = Vec::with_capacity(capabilities_advertise.buffer_length());
-    capabilities_advertise.to_buffer(&mut capabilities_advertise_buffer)?;
+    capabilities_advertise
+        .to_buffer(&mut capabilities_advertise_buffer)
+        .map_err(SessionError::pdu)?;
 
     Ok(capabilities_advertise_buffer)
 }

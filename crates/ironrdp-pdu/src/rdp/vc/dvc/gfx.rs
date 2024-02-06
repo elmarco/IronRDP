@@ -2,7 +2,6 @@ mod graphics_messages;
 
 use std::io;
 
-use byteorder::{LittleEndian, ReadBytesExt, WriteBytesExt};
 pub use graphics_messages::{
     Avc420BitmapStream, Avc444BitmapStream, CacheImportReplyPdu, CacheToSurfacePdu, CapabilitiesAdvertisePdu,
     CapabilitiesConfirmPdu, CapabilitiesV103Flags, CapabilitiesV104Flags, CapabilitiesV107Flags, CapabilitiesV10Flags,
@@ -17,7 +16,7 @@ use num_traits::{FromPrimitive as _, ToPrimitive as _};
 use thiserror::Error;
 
 use crate::cursor::{ReadCursor, WriteCursor};
-use crate::{PduDecode, PduEncode, PduError, PduParsing, PduResult};
+use crate::{PduDecode, PduEncode, PduError, PduResult};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum ServerPdu {
@@ -170,52 +169,61 @@ pub enum ClientPdu {
     CapabilitiesAdvertise(CapabilitiesAdvertisePdu),
 }
 
-impl PduParsing for ClientPdu {
-    type Error = GraphicsPipelineError;
+impl ClientPdu {
+    const NAME: &'static str = "GfxClientPdu";
 
-    fn from_buffer(mut stream: impl io::Read) -> Result<Self, Self::Error> {
-        let pdu_type =
-            ClientPduType::from_u16(stream.read_u16::<LittleEndian>()?).ok_or(GraphicsPipelineError::InvalidCmdId)?;
-        let _flags = stream.read_u16::<LittleEndian>()?;
-        let pdu_length = stream.read_u32::<LittleEndian>()? as usize;
+    const FIXED_PART_SIZE: usize = RDP_GFX_HEADER_SIZE;
+}
+
+impl_pdu_parsing_max!(ClientPdu);
+
+impl PduEncode for ClientPdu {
+    fn encode(&self, dst: &mut WriteCursor<'_>) -> PduResult<()> {
+        ensure_size!(in: dst, size: self.size());
+
+        dst.write_u16(ClientPduType::from(self).to_u16().unwrap());
+        dst.write_u16(0); // flags
+        dst.write_u32(cast_length!("bufferLen", self.size())?);
+
+        match self {
+            ClientPdu::FrameAcknowledge(pdu) => pdu.encode(dst),
+            ClientPdu::CapabilitiesAdvertise(pdu) => pdu.encode(dst),
+        }
+    }
+
+    fn name(&self) -> &'static str {
+        Self::NAME
+    }
+
+    fn size(&self) -> usize {
+        Self::FIXED_PART_SIZE
+            + match self {
+                ClientPdu::FrameAcknowledge(pdu) => pdu.size(),
+                ClientPdu::CapabilitiesAdvertise(pdu) => pdu.size(),
+            }
+    }
+}
+
+impl<'a> PduDecode<'a> for ClientPdu {
+    fn decode(src: &mut ReadCursor<'a>) -> PduResult<Self> {
+        let pdu_type = ClientPduType::from_u16(src.read_u16())
+            .ok_or_else(|| invalid_message_err!("clientPduType", "invalid pdu type"))?;
+        let _flags = src.read_u16();
+        let pdu_length = cast_length!("bufferLen", src.read_u32())?;
 
         let client_pdu = match pdu_type {
-            ClientPduType::FrameAcknowledge => {
-                ClientPdu::FrameAcknowledge(FrameAcknowledgePdu::from_buffer(&mut stream)?)
-            }
+            ClientPduType::FrameAcknowledge => ClientPdu::FrameAcknowledge(FrameAcknowledgePdu::decode(src)?),
             ClientPduType::CapabilitiesAdvertise => {
-                ClientPdu::CapabilitiesAdvertise(CapabilitiesAdvertisePdu::from_buffer(&mut stream)?)
+                ClientPdu::CapabilitiesAdvertise(CapabilitiesAdvertisePdu::decode(src)?)
             }
-            _ => return Err(GraphicsPipelineError::UnexpectedClientPduType(pdu_type)),
+            _ => return Err(invalid_message_err!("pduType", "invalid pdu type")),
         };
 
-        if client_pdu.buffer_length() != pdu_length {
-            Err(GraphicsPipelineError::InvalidPduLength {
-                expected: pdu_length,
-                actual: client_pdu.buffer_length(),
-            })
+        if client_pdu.size() != pdu_length {
+            Err(invalid_message_err!("len", "invalid pdu length"))
         } else {
             Ok(client_pdu)
         }
-    }
-
-    fn to_buffer(&self, mut stream: impl io::Write) -> Result<(), Self::Error> {
-        stream.write_u16::<LittleEndian>(ClientPduType::from(self).to_u16().unwrap())?;
-        stream.write_u16::<LittleEndian>(0)?; // flags
-        stream.write_u32::<LittleEndian>(self.buffer_length() as u32)?;
-
-        match self {
-            ClientPdu::FrameAcknowledge(pdu) => pdu.to_buffer(&mut stream).map_err(GraphicsPipelineError::from),
-            ClientPdu::CapabilitiesAdvertise(pdu) => pdu.to_buffer(&mut stream).map_err(GraphicsPipelineError::from),
-        }
-    }
-
-    fn buffer_length(&self) -> usize {
-        RDP_GFX_HEADER_SIZE
-            + match self {
-                ClientPdu::FrameAcknowledge(pdu) => pdu.buffer_length(),
-                ClientPdu::CapabilitiesAdvertise(pdu) => pdu.buffer_length(),
-            }
     }
 }
 
