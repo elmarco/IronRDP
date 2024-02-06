@@ -11,8 +11,6 @@ impl CapabilitiesAdvertisePdu {
     const FIXED_PART_SIZE: usize  = 2 /* Count */;
 }
 
-impl_pdu_parsing_max!(CapabilitiesAdvertisePdu);
-
 impl PduEncode for CapabilitiesAdvertisePdu {
     fn encode(&self, dst: &mut WriteCursor<'_>) -> PduResult<()> {
         ensure_size!(in: dst, size: self.size());
@@ -57,8 +55,6 @@ pub struct FrameAcknowledgePdu {
     pub frame_id: u32,
     pub total_frames_decoded: u32,
 }
-
-impl_pdu_parsing!(FrameAcknowledgePdu);
 
 impl FrameAcknowledgePdu {
     const NAME: &'static str = "FrameAcknowledgePdu";
@@ -106,8 +102,6 @@ impl<'a> PduDecode<'a> for FrameAcknowledgePdu {
 pub struct CacheImportReplyPdu {
     pub cache_slots: Vec<u16>,
 }
-
-impl_pdu_parsing_max!(CacheImportReplyPdu);
 
 impl CacheImportReplyPdu {
     const NAME: &'static str = "CacheImportReplyPdu";

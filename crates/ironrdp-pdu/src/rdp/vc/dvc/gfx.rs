@@ -1,7 +1,5 @@
 mod graphics_messages;
 
-use std::io;
-
 pub use graphics_messages::{
     Avc420BitmapStream, Avc444BitmapStream, CacheImportReplyPdu, CacheToSurfacePdu, CapabilitiesAdvertisePdu,
     CapabilitiesConfirmPdu, CapabilitiesV103Flags, CapabilitiesV104Flags, CapabilitiesV107Flags, CapabilitiesV10Flags,
@@ -13,10 +11,9 @@ pub use graphics_messages::{
 };
 use num_derive::{FromPrimitive, ToPrimitive};
 use num_traits::{FromPrimitive as _, ToPrimitive as _};
-use thiserror::Error;
 
 use crate::cursor::{ReadCursor, WriteCursor};
-use crate::{PduDecode, PduEncode, PduError, PduResult};
+use crate::{PduDecode, PduEncode, PduResult};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum ServerPdu {
@@ -47,8 +44,6 @@ impl ServerPdu {
 
     const FIXED_PART_SIZE: usize = RDP_GFX_HEADER_SIZE;
 }
-
-impl_pdu_parsing_max!(ServerPdu);
 
 impl PduEncode for ServerPdu {
     fn encode(&self, dst: &mut WriteCursor<'_>) -> PduResult<()> {
@@ -175,8 +170,6 @@ impl ClientPdu {
     const FIXED_PART_SIZE: usize = RDP_GFX_HEADER_SIZE;
 }
 
-impl_pdu_parsing_max!(ClientPdu);
-
 impl PduEncode for ClientPdu {
     fn encode(&self, dst: &mut WriteCursor<'_>) -> PduResult<()> {
         ensure_size!(in: dst, size: self.size());
@@ -289,38 +282,5 @@ impl<'a> From<&'a ServerPdu> for ServerPduType {
             ServerPdu::CapabilitiesConfirm(_) => Self::CapabilitiesConfirm,
             ServerPdu::CacheImportReply(_) => Self::CacheImportReply,
         }
-    }
-}
-
-#[derive(Debug, Error)]
-pub enum GraphicsPipelineError {
-    #[error("IO error")]
-    IOError(#[from] io::Error),
-    #[error("graphics messages error")]
-    GraphicsMessagesError(#[from] graphics_messages::GraphicsMessagesError),
-    #[error("invalid Header cmd ID")]
-    InvalidCmdId,
-    #[error("unexpected client's PDU type: {0:?}")]
-    UnexpectedClientPduType(ClientPduType),
-    #[error("unexpected server's PDU type: {0:?}")]
-    UnexpectedServerPduType(ServerPduType),
-    #[error("invalid ResetGraphics PDU size: expected ({expected}) != actual ({actual})")]
-    InvalidResetGraphicsPduSize { expected: usize, actual: usize },
-    #[error("invalid PDU length: expected ({expected}) != actual ({actual})")]
-    InvalidPduLength { expected: usize, actual: usize },
-    #[error("PDU error: {0}")]
-    Pdu(PduError),
-}
-
-impl From<PduError> for GraphicsPipelineError {
-    fn from(e: PduError) -> Self {
-        Self::Pdu(e)
-    }
-}
-
-#[cfg(feature = "std")]
-impl ironrdp_error::legacy::ErrorContext for GraphicsPipelineError {
-    fn context(&self) -> &'static str {
-        "graphics pipeline"
     }
 }

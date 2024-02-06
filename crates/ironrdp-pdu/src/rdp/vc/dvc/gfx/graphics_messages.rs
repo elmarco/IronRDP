@@ -1,12 +1,10 @@
 mod client;
 mod server;
 
-use std::io;
 mod avc_messages;
 use bitflags::bitflags;
 use num_derive::{FromPrimitive, ToPrimitive};
 use num_traits::{FromPrimitive as _, ToPrimitive as _};
-use thiserror::Error;
 
 #[rustfmt::skip] // do not re-order this
 pub use avc_messages::{Avc420BitmapStream, Avc444BitmapStream, Encoding, QuantQuality};
@@ -20,7 +18,7 @@ pub use server::{
 
 use super::RDP_GFX_HEADER_SIZE;
 use crate::cursor::{ReadCursor, WriteCursor};
-use crate::{PduDecode, PduEncode, PduError, PduResult};
+use crate::{PduDecode, PduEncode, PduResult};
 
 const CAPABILITY_SET_HEADER_SIZE: usize = 8;
 
@@ -184,8 +182,6 @@ impl<'de> PduDecode<'de> for CapabilitySet {
     }
 }
 
-impl_pdu_parsing_max!(CapabilitySet);
-
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Color {
     pub b: u8,
@@ -234,8 +230,6 @@ impl<'de> PduDecode<'de> for Color {
     }
 }
 
-impl_pdu_parsing!(Color);
-
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Point {
     pub x: u16,
@@ -277,8 +271,6 @@ impl<'de> PduDecode<'de> for Point {
         Ok(Self { x, y })
     }
 }
-
-impl_pdu_parsing!(Point);
 
 #[repr(u32)]
 #[derive(Debug, Copy, Clone, PartialEq, Eq, FromPrimitive, ToPrimitive)]
@@ -346,35 +338,5 @@ bitflags! {
         const AVC_DISABLED = 0x20;
         const AVC_THIN_CLIENT = 0x40;
         const SCALEDMAP_DISABLE = 0x80;
-    }
-}
-
-#[derive(Debug, Error)]
-pub enum GraphicsMessagesError {
-    #[error("IO error")]
-    IOError(#[from] io::Error),
-    #[error("invalid codec ID version 1")]
-    InvalidCodec1Id,
-    #[error("invalid codec ID version 2")]
-    InvalidCodec2Id,
-    #[error("invalid pixel format")]
-    InvalidPixelFormat,
-    #[error("invalid ResetGraphics PDU width: {} > MAX ({})", actual, max)]
-    InvalidResetGraphicsPduWidth { actual: u32, max: u32 },
-    #[error("invalid ResetGraphics PDU height: {} > MAX ({})", actual, max)]
-    InvalidResetGraphicsPduHeight { actual: u32, max: u32 },
-    #[error("invalid ResetGraphics PDU monitors count: {} > MAX ({})", actual, max)]
-    InvalidResetGraphicsPduMonitorsCount { actual: u32, max: u32 },
-    #[error("invalid capabilities version")]
-    InvalidCapabilitiesVersion,
-    #[error("both luma and chroma packets specified but length is missing")]
-    InvalidAvcEncoding,
-    #[error("PDU error: {0}")]
-    Pdu(PduError),
-}
-
-impl From<PduError> for GraphicsMessagesError {
-    fn from(e: PduError) -> Self {
-        Self::Pdu(e)
     }
 }

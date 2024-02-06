@@ -42,8 +42,6 @@ impl WireToSurface1Pdu {
     const FIXED_PART_SIZE: usize = 2 /* SurfaceId */ + 2 /* CodecId */ + 1 /* PixelFormat */ + InclusiveRectangle::FIXED_PART_SIZE /* Dest */ + 4 /* BitmapDataLen */;
 }
 
-impl_pdu_parsing_max!(WireToSurface1Pdu);
-
 impl PduEncode for WireToSurface1Pdu {
     fn encode(&self, dst: &mut WriteCursor<'_>) -> PduResult<()> {
         ensure_size!(in: dst, size: self.size());
@@ -99,8 +97,6 @@ pub struct WireToSurface2Pdu {
     pub pixel_format: PixelFormat,
     pub bitmap_data: Vec<u8>,
 }
-
-impl_pdu_parsing_max!(WireToSurface2Pdu);
 
 impl fmt::Debug for WireToSurface2Pdu {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
@@ -174,8 +170,6 @@ pub struct DeleteEncodingContextPdu {
     pub codec_context_id: u32,
 }
 
-impl_pdu_parsing!(DeleteEncodingContextPdu);
-
 impl DeleteEncodingContextPdu {
     const NAME: &'static str = "DeleteEncodingContextPdu";
 
@@ -227,8 +221,6 @@ impl SolidFillPdu {
 
     const FIXED_PART_SIZE: usize = 2 /* SurfaceId */ + Color::FIXED_PART_SIZE /* Color */ + 2 /* RectCount */;
 }
-
-impl_pdu_parsing_max!(SolidFillPdu);
 
 impl PduEncode for SolidFillPdu {
     fn encode(&self, dst: &mut WriteCursor<'_>) -> PduResult<()> {
@@ -288,8 +280,6 @@ impl SurfaceToSurfacePdu {
 
     const FIXED_PART_SIZE: usize = 2 /* SourceId */ + 2 /* DestId */ + InclusiveRectangle::FIXED_PART_SIZE /* SourceRect */ + 2 /* DestPointsCount */;
 }
-
-impl_pdu_parsing_max!(SurfaceToSurfacePdu);
 
 impl PduEncode for SurfaceToSurfacePdu {
     fn encode(&self, dst: &mut WriteCursor<'_>) -> PduResult<()> {
@@ -352,8 +342,6 @@ impl SurfaceToCachePdu {
     const FIXED_PART_SIZE: usize = 2 /* SurfaceId */ + 8 /* CacheKey */ + 2 /* CacheSlot */ + InclusiveRectangle::FIXED_PART_SIZE /* SourceRect */;
 }
 
-impl_pdu_parsing!(SurfaceToCachePdu);
-
 impl PduEncode for SurfaceToCachePdu {
     fn encode(&self, dst: &mut WriteCursor<'_>) -> PduResult<()> {
         ensure_fixed_part_size!(in: dst);
@@ -405,8 +393,6 @@ impl CacheToSurfacePdu {
 
     const FIXED_PART_SIZE: usize = mem::size_of::<u16>() * 3;
 }
-
-impl_pdu_parsing_max!(CacheToSurfacePdu);
 
 impl PduEncode for CacheToSurfacePdu {
     fn encode(&self, dst: &mut WriteCursor<'_>) -> PduResult<()> {
@@ -465,8 +451,6 @@ impl CreateSurfacePdu {
     const FIXED_PART_SIZE: usize = 2 /* SurfaceId */ + 2 /* Width */ + 2 /* Height */ + 1 /* PixelFormat */;
 }
 
-impl_pdu_parsing!(CreateSurfacePdu);
-
 impl PduEncode for CreateSurfacePdu {
     fn encode(&self, dst: &mut WriteCursor<'_>) -> PduResult<()> {
         ensure_fixed_part_size!(in: dst);
@@ -518,8 +502,6 @@ impl DeleteSurfacePdu {
     const FIXED_PART_SIZE: usize = 2 /* SurfaceId */;
 }
 
-impl_pdu_parsing!(DeleteSurfacePdu);
-
 impl PduEncode for DeleteSurfacePdu {
     fn encode(&self, dst: &mut WriteCursor<'_>) -> PduResult<()> {
         ensure_fixed_part_size!(in: dst);
@@ -560,8 +542,6 @@ impl ResetGraphicsPdu {
 
     const FIXED_PART_SIZE: usize = 4 /* Width */ + 4 /* Height */;
 }
-
-impl_pdu_parsing_max!(ResetGraphicsPdu);
 
 impl PduEncode for ResetGraphicsPdu {
     fn encode(&self, dst: &mut WriteCursor<'_>) -> PduResult<()> {
@@ -643,8 +623,6 @@ impl MapSurfaceToOutputPdu {
     const FIXED_PART_SIZE: usize = 2 /* surfaceId */ + 2 /* reserved */ + 4 /* OutOriginX */ + 4 /* OutOriginY */;
 }
 
-impl_pdu_parsing!(MapSurfaceToOutputPdu);
-
 impl PduEncode for MapSurfaceToOutputPdu {
     fn encode(&self, dst: &mut WriteCursor<'_>) -> PduResult<()> {
         ensure_fixed_part_size!(in: dst);
@@ -697,8 +675,6 @@ impl MapSurfaceToScaledOutputPdu {
 
     const FIXED_PART_SIZE: usize = 2 /* SurfaceId */ + 2 /* reserved */ + 4 /* OutOriginX */ + 4 /* OutOriginY */ + 4 /* TargetWidth */ + 4 /* TargetHeight */;
 }
-
-impl_pdu_parsing!(MapSurfaceToScaledOutputPdu);
 
 impl PduEncode for MapSurfaceToScaledOutputPdu {
     fn encode(&self, dst: &mut WriteCursor<'_>) -> PduResult<()> {
@@ -760,8 +736,6 @@ impl MapSurfaceToScaledWindowPdu {
     const FIXED_PART_SIZE: usize = 2 /* SurfaceId */ + 8 /* WindowId */ + 4 /* MappedWidth */ + 4 /* MappedHeight */ + 4 /* TargetWidth */ + 4 /* TargetHeight */;
 }
 
-impl_pdu_parsing!(MapSurfaceToScaledWindowPdu);
-
 impl PduEncode for MapSurfaceToScaledWindowPdu {
     fn encode(&self, dst: &mut WriteCursor<'_>) -> PduResult<()> {
         dst.write_u16(self.surface_id);
@@ -816,8 +790,6 @@ impl EvictCacheEntryPdu {
     const FIXED_PART_SIZE: usize = 2;
 }
 
-impl_pdu_parsing!(EvictCacheEntryPdu);
-
 impl PduEncode for EvictCacheEntryPdu {
     fn encode(&self, dst: &mut WriteCursor<'_>) -> PduResult<()> {
         ensure_fixed_part_size!(in: dst);
@@ -857,8 +829,6 @@ impl StartFramePdu {
 
     const FIXED_PART_SIZE: usize = Timestamp::FIXED_PART_SIZE + 4 /* FrameId */;
 }
-
-impl_pdu_parsing!(StartFramePdu);
 
 impl PduEncode for StartFramePdu {
     fn encode(&self, dst: &mut WriteCursor<'_>) -> PduResult<()> {
@@ -901,8 +871,6 @@ impl EndFramePdu {
     const FIXED_PART_SIZE: usize = 4;
 }
 
-impl_pdu_parsing!(EndFramePdu);
-
 impl PduEncode for EndFramePdu {
     fn encode(&self, dst: &mut WriteCursor<'_>) -> PduResult<()> {
         ensure_fixed_part_size!(in: dst);
@@ -937,8 +905,6 @@ pub struct CapabilitiesConfirmPdu(pub CapabilitySet);
 impl CapabilitiesConfirmPdu {
     const NAME: &'static str = "CapabilitiesConfirmPdu";
 }
-
-impl_pdu_parsing_max!(CapabilitiesConfirmPdu);
 
 impl PduEncode for CapabilitiesConfirmPdu {
     fn encode(&self, dst: &mut WriteCursor<'_>) -> PduResult<()> {
