@@ -1,5 +1,6 @@
+use ironrdp_pdu::cursor::ReadCursor;
 use ironrdp_pdu::rdp::vc::dvc::gfx::*;
-use ironrdp_pdu::{PduBufferParsing, PduParsing};
+use ironrdp_pdu::{decode_cursor, encode_vec, PduParsing};
 use ironrdp_testsuite_core::gfx::*;
 use ironrdp_testsuite_core::graphics_messages::*;
 
@@ -464,26 +465,26 @@ fn buffer_length_is_correct_for_cache_import_reply() {
 
 #[test]
 fn from_buffer_consume_correctly_parses_incorrect_len_avc_444_message() {
-    let mut buffer = AVC_444_MESSAGE_INCORRECT_LEN.as_ref();
-    assert_eq!(
-        *AVC_444_BITMAP,
-        Avc444BitmapStream::from_buffer_consume(&mut buffer).unwrap()
-    );
+    let buffer = AVC_444_MESSAGE_INCORRECT_LEN.as_ref();
+
+    let mut cursor = ReadCursor::new(buffer);
+    assert_eq!(*AVC_444_BITMAP, decode_cursor(&mut cursor).unwrap());
+    assert!(!cursor.is_empty());
 }
+
 #[test]
 fn from_buffer_consume_correctly_parses_avc_444_message() {
-    let mut buffer = AVC_444_MESSAGE_CORRECT_LEN.as_ref();
-    assert_eq!(
-        *AVC_444_BITMAP,
-        Avc444BitmapStream::from_buffer_consume(&mut buffer).unwrap()
-    );
+    let buffer = AVC_444_MESSAGE_CORRECT_LEN.as_ref();
+
+    let mut cursor = ReadCursor::new(buffer);
+    assert_eq!(*AVC_444_BITMAP, decode_cursor(&mut cursor).unwrap());
+    assert!(cursor.is_empty());
 }
 
 #[test]
 fn to_buffer_consume_correctly_serializes_avc_444_message() {
+    let buffer = encode_vec(&*AVC_444_BITMAP).unwrap();
     let expected = AVC_444_MESSAGE_CORRECT_LEN.as_ref();
-    let mut buffer = vec![0; expected.len()];
 
-    AVC_444_BITMAP.to_buffer_consume(&mut buffer.as_mut_slice()).unwrap();
     assert_eq!(expected, buffer.as_slice());
 }
