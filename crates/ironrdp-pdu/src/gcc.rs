@@ -30,9 +30,7 @@ pub use self::message_channel_data::{ClientMessageChannelData, ServerMessageChan
 pub use self::monitor_data::{
     ClientMonitorData, Monitor, MonitorFlags, MONITOR_COUNT_SIZE, MONITOR_FLAGS_SIZE, MONITOR_SIZE,
 };
-pub use self::monitor_extended_data::{
-    ClientMonitorExtendedData, ExtendedMonitorInfo, MonitorExtendedDataError, MonitorOrientation,
-};
+pub use self::monitor_extended_data::{ClientMonitorExtendedData, ExtendedMonitorInfo, MonitorOrientation};
 pub use self::multi_transport_channel_data::{MultiTransportChannelData, MultiTransportFlags};
 pub use self::network_data::{
     ChannelDef, ChannelName, ChannelOptions, ClientNetworkData, NetworkDataError, ServerNetworkData,
@@ -375,8 +373,6 @@ pub enum GccError {
     NetworkError(#[from] NetworkDataError),
     #[error("cluster data block error")]
     ClusterError(#[from] ClusterDataError),
-    #[error("monitor extended data block error")]
-    MonitorExtendedError(#[from] MonitorExtendedDataError),
     #[error("invalid GCC block type")]
     InvalidGccType,
     #[error("invalid conference create request: {0}")]
