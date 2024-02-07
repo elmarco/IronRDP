@@ -1,3 +1,4 @@
+use ironrdp_pdu::cursor::ReadCursor;
 use ironrdp_pdu::gcc::conference_create::*;
 use ironrdp_pdu::gcc::*;
 use ironrdp_pdu::{decode, encode_vec, PduErrorKind, PduParsing as _};
@@ -202,8 +203,9 @@ fn buffer_length_is_correct_for_server_gcc_blocks_with_optional_data_blocks() {
 #[test]
 fn from_buffer_correctly_handles_invalid_lengths_in_user_data_header() {
     let buffer: [u8; 4] = [0x01, 0xc0, 0x00, 0x00];
+    let mut cur = ReadCursor::new(&buffer);
 
-    assert!(UserDataHeader::<ClientGccType>::from_buffer(buffer.as_ref()).is_err());
+    assert!(UserDataHeader::decode::<ClientGccType>(&mut cur).is_err());
 }
 
 #[test]

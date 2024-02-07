@@ -201,8 +201,7 @@ impl Sequence for Acceptor {
     fn step(&mut self, input: &[u8], output: &mut WriteBuf) -> ConnectorResult<Written> {
         let (written, next_state) = match std::mem::take(&mut self.state) {
             AcceptorState::InitiationWaitRequest => {
-                let connection_request =
-                    decode::<nego::ConnectionRequest>(input).map_err(ConnectorError::pdu)?;
+                let connection_request = decode::<nego::ConnectionRequest>(input).map_err(ConnectorError::pdu)?;
 
                 debug!(message = ?connection_request, "Received");
 
