@@ -5,7 +5,7 @@ use num_derive::{FromPrimitive, ToPrimitive};
 use num_traits::{FromPrimitive as _, ToPrimitive as _};
 use thiserror::Error;
 
-use crate::{PduParsing, PduError};
+use crate::{PduError, PduParsing};
 
 #[cfg(test)]
 mod tests;
