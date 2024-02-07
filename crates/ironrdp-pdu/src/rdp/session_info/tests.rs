@@ -1,6 +1,6 @@
 use lazy_static::lazy_static;
 
-use crate::PduErrorKind;
+use crate::{decode, encode_vec, PduEncode, PduErrorKind};
 
 use super::*;
 
@@ -215,18 +215,20 @@ const LOGON_INFO_V1_WITH_INVALID_USER_NAME_SIZE_BUFFER: [u8; 576] = [
 const LOGON_INFO_V2_WITH_INVALID_LOGON_VERSION_BUFFER: [u8; 2] = [0x00, 0x00];
 const LOGON_INFO_V2_WITH_INVALID_LOGON_INFO_V2_SIZE_BUFFER: [u8; 6] = [0x01, 0x00, 0x13, 0x00, 0x00, 0x00];
 
-const LOGON_EXTENDED_WITH_INVALID_RECONNECT_PACKET_SIZE_BUFFER: [u8; 14] = [
-    0x26, 0x00, 0x01, 0x00, 0x00, 0x00, 0x1c, 0x00, 0x00, 0x00, 0x1a, 0x00, 0x00, 0x00,
+const LOGON_EXTENDED_WITH_INVALID_RECONNECT_PACKET_SIZE_BUFFER: [u8; 28] = [
+    0x26, 0x00, 0x01, 0x00, 0x00, 0x00, 0x1c, 0x00, 0x00, 0x00, 0x1a, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
 ];
 
-const LOGON_EXTENDED_WITH_INVALID_RECONNECT_VERSION_BUFFER: [u8; 18] = [
-    0x26, 0x00, 0x01, 0x00, 0x00, 0x00, 0x1c, 0x00, 0x00, 0x00, 0x1c, 0x00, 0x00, 0x00, 0x02, 0x00, 0x00, 0x00,
+const LOGON_EXTENDED_WITH_INVALID_RECONNECT_VERSION_BUFFER: [u8; 38] = [
+    0x26, 0x00, 0x01, 0x00, 0x00, 0x00, 0x1c, 0x00, 0x00, 0x00, 0x1c, 0x00, 0x00, 0x00, 0x02, 0x00, 0x00, 0x00, 0x00,
+    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
 ];
 
-const LOGON_EXTENDED_WITH_INVALID_LOGON_ERROR_TYPE_BUFFER: [u8; 46] = [
+const LOGON_EXTENDED_WITH_INVALID_LOGON_ERROR_TYPE_BUFFER: [u8; 50] = [
     0x32, 0x00, 0x03, 0x00, 0x00, 0x00, 0x1c, 0x00, 0x00, 0x00, 0x1c, 0x00, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00, 0x02,
     0x00, 0x00, 0x00, 0xa8, 0x02, 0xe7, 0x25, 0xe2, 0x4c, 0x82, 0xb7, 0x52, 0xa5, 0x53, 0x50, 0x34, 0x98, 0xa1, 0xa8,
-    0x08, 0x00, 0x00, 0x00, 0xf0, 0xff, 0xff, 0xff,
+    0x08, 0x00, 0x00, 0x00, 0xf0, 0xff, 0xff, 0xff, 0x00, 0x00, 0x00, 0x00,
 ];
 
 const DOMAIN_NAME: &str = "NTDEV";
@@ -269,18 +271,14 @@ lazy_static! {
 
 #[test]
 fn from_buffer_correct_parses_logon_info_v1() {
-    assert_eq!(
-        LOGON_INFO_V1.clone(),
-        LogonInfoVersion1::from_buffer(LOGON_INFO_V1_BUFFER.as_ref()).unwrap(),
-    );
+    assert_eq!(LOGON_INFO_V1.clone(), decode(LOGON_INFO_V1_BUFFER.as_ref()).unwrap(),);
 }
 
 #[test]
 fn to_buffer_correct_serializes_logon_info_v1() {
     let info_v1 = LOGON_INFO_V1.clone();
 
-    let mut buffer = Vec::new();
-    info_v1.to_buffer(&mut buffer).unwrap();
+    let buffer = encode_vec(&info_v1).unwrap();
 
     assert_eq!(LOGON_INFO_V1_BUFFER.as_ref(), buffer.as_slice());
 }
@@ -290,25 +288,21 @@ fn buffer_length_is_correct_for_logon_info_v1() {
     let info_v1 = LOGON_INFO_V1.clone();
     let expected_buf_len = LOGON_INFO_V1_BUFFER.len();
 
-    let len = info_v1.buffer_length();
+    let len = info_v1.size();
 
     assert_eq!(expected_buf_len, len);
 }
 
 #[test]
 fn from_buffer_correct_parses_logon_info_v2() {
-    assert_eq!(
-        LOGON_INFO_V2.clone(),
-        LogonInfoVersion2::from_buffer(LOGON_INFO_V2_BUFFER.as_ref()).unwrap(),
-    );
+    assert_eq!(LOGON_INFO_V2.clone(), decode(LOGON_INFO_V2_BUFFER.as_ref()).unwrap(),);
 }
 
 #[test]
 fn to_buffer_correct_serializes_logon_info_v2() {
     let info_v2 = LOGON_INFO_V2.clone();
 
-    let mut buffer = Vec::new();
-    info_v2.to_buffer(&mut buffer).unwrap();
+    let buffer = encode_vec(&info_v2).unwrap();
 
     assert_eq!(LOGON_INFO_V2_BUFFER.as_ref(), buffer.as_slice());
 }
@@ -318,7 +312,7 @@ fn buffer_length_is_correct_for_logon_info_v2() {
     let info_v2 = LOGON_INFO_V2.clone();
     let expected_buf_len = LOGON_INFO_V2_BUFFER.len();
 
-    let len = info_v2.buffer_length();
+    let len = info_v2.size();
 
     assert_eq!(expected_buf_len, len);
 }
@@ -356,18 +350,14 @@ fn buffer_length_is_correct_for_plain_notify() {
 
 #[test]
 fn from_buffer_correct_parses_extended_info() {
-    assert_eq!(
-        LOGON_EXTENDED.clone(),
-        LogonInfoExtended::from_buffer(LOGON_EXTENDED_BUFFER.as_ref()).unwrap(),
-    );
+    assert_eq!(LOGON_EXTENDED.clone(), decode(LOGON_EXTENDED_BUFFER.as_ref()).unwrap(),);
 }
 
 #[test]
 fn to_buffer_correct_serializes_extended_info() {
     let extended = LOGON_EXTENDED.clone();
 
-    let mut buffer = Vec::new();
-    extended.to_buffer(&mut buffer).unwrap();
+    let buffer = encode_vec(&extended).unwrap();
 
     assert_eq!(LOGON_EXTENDED_BUFFER.as_ref(), buffer.as_slice());
 }
@@ -377,7 +367,7 @@ fn buffer_length_is_correct_for_extended_info() {
     let extended = LOGON_EXTENDED.clone();
     let expected_buf_len = LOGON_EXTENDED_BUFFER.len();
 
-    let len = extended.buffer_length();
+    let len = extended.size();
 
     assert_eq!(expected_buf_len, len);
 }
@@ -392,7 +382,7 @@ fn from_buffer_parsing_with_invalid_session_info_type_fails() {
 
 #[test]
 fn from_buffer_parsing_with_invalid_domain_size_fails() {
-    match LogonInfoVersion1::from_buffer(LOGON_INFO_V1_WITH_INVALID_DOMAIN_SIZE_BUFFER.as_ref()) {
+    match decode::<LogonInfoVersion1>(LOGON_INFO_V1_WITH_INVALID_DOMAIN_SIZE_BUFFER.as_ref()) {
         Err(e) if matches!(e.kind(), PduErrorKind::InvalidMessage { .. }) => (),
         res => panic!("Expected InvalidDomainNameSize error, got: {res:?}"),
     };
@@ -400,7 +390,7 @@ fn from_buffer_parsing_with_invalid_domain_size_fails() {
 
 #[test]
 fn from_buffer_parsing_with_invalid_user_name_size_fails() {
-    match LogonInfoVersion1::from_buffer(LOGON_INFO_V1_WITH_INVALID_USER_NAME_SIZE_BUFFER.as_ref()) {
+    match decode::<LogonInfoVersion1>(LOGON_INFO_V1_WITH_INVALID_USER_NAME_SIZE_BUFFER.as_ref()) {
         Err(e) if matches!(e.kind(), PduErrorKind::InvalidMessage { .. }) => (),
         res => panic!("Expected InvalidUserNameSize error, got: {res:?}"),
     };
@@ -408,7 +398,7 @@ fn from_buffer_parsing_with_invalid_user_name_size_fails() {
 
 #[test]
 fn from_buffer_parsing_with_invalid_logon_version_fails() {
-    match LogonInfoVersion2::from_buffer(LOGON_INFO_V2_WITH_INVALID_LOGON_VERSION_BUFFER.as_ref()) {
+    match decode::<LogonInfoVersion2>(LOGON_INFO_V2_WITH_INVALID_LOGON_VERSION_BUFFER.as_ref()) {
         Err(e) if matches!(e.kind(), PduErrorKind::InvalidMessage { .. }) => (),
         res => panic!("Expected InvalidLogonVersion2 error, got: {res:?}"),
     };
@@ -416,7 +406,7 @@ fn from_buffer_parsing_with_invalid_logon_version_fails() {
 
 #[test]
 fn from_buffer_parsing_with_invalid_logon_infov2_size_fails() {
-    match LogonInfoVersion2::from_buffer(LOGON_INFO_V2_WITH_INVALID_LOGON_INFO_V2_SIZE_BUFFER.as_ref()) {
+    match decode::<LogonInfoVersion2>(LOGON_INFO_V2_WITH_INVALID_LOGON_INFO_V2_SIZE_BUFFER.as_ref()) {
         Err(e) if matches!(e.kind(), PduErrorKind::InvalidMessage { .. }) => (),
         res => panic!("Expected InvalidLogonVersion2Size error, got: {res:?}"),
     };
@@ -424,24 +414,24 @@ fn from_buffer_parsing_with_invalid_logon_infov2_size_fails() {
 
 #[test]
 fn from_buffer_parsing_with_invalid_reconnect_packet_size_fails() {
-    match LogonInfoExtended::from_buffer(LOGON_EXTENDED_WITH_INVALID_RECONNECT_PACKET_SIZE_BUFFER.as_ref()) {
-        Err(SessionError::InvalidAutoReconnectPacketSize) => (),
+    match decode::<LogonInfoExtended>(LOGON_EXTENDED_WITH_INVALID_RECONNECT_PACKET_SIZE_BUFFER.as_ref()) {
+        Err(e) if matches!(e.kind(), PduErrorKind::NotEnoughBytes { .. }) => (),
         res => panic!("Expected InvalidAutoReconnectPacketSize error, got: {res:?}"),
     };
 }
 
 #[test]
 fn from_buffer_parsing_with_invalid_reconnect_version_fails() {
-    match LogonInfoExtended::from_buffer(LOGON_EXTENDED_WITH_INVALID_RECONNECT_VERSION_BUFFER.as_ref()) {
-        Err(SessionError::InvalidAutoReconnectVersion) => (),
+    match decode::<LogonInfoExtended>(LOGON_EXTENDED_WITH_INVALID_RECONNECT_VERSION_BUFFER.as_ref()) {
+        Err(e) if matches!(e.kind(), PduErrorKind::InvalidMessage { .. }) => (),
         res => panic!("Expected InvalidAutoReconnectVersion error, got: {res:?}"),
     };
 }
 
 #[test]
 fn from_buffer_parsing_with_invalid_logon_error_type_fails() {
-    match LogonInfoExtended::from_buffer(LOGON_EXTENDED_WITH_INVALID_LOGON_ERROR_TYPE_BUFFER.as_ref()) {
-        Err(SessionError::InvalidLogonErrorType) => (),
+    match decode::<LogonInfoExtended>(LOGON_EXTENDED_WITH_INVALID_LOGON_ERROR_TYPE_BUFFER.as_ref()) {
+        Err(e) if matches!(e.kind(), PduErrorKind::InvalidMessage { .. }) => (),
         res => panic!("Expected InvalidLogonErrorType error, got: {res:?}"),
     };
 }
