@@ -1,7 +1,6 @@
 use ironrdp_pdu::cursor::ReadCursor;
-use ironrdp_pdu::gcc::conference_create::*;
 use ironrdp_pdu::gcc::*;
-use ironrdp_pdu::{decode, encode_vec, PduEncode, PduErrorKind, PduParsing as _};
+use ironrdp_pdu::{decode, encode_vec, PduEncode, PduErrorKind};
 use ironrdp_testsuite_core::cluster_data::*;
 use ironrdp_testsuite_core::conference_create::*;
 use ironrdp_testsuite_core::core_data::*;
@@ -824,20 +823,22 @@ fn buffer_length_is_correct_for_server_security_data_with_optional_fields() {
 fn from_buffer_correctly_parses_conference_create_request() {
     assert_eq!(
         *CONFERENCE_CREATE_REQUEST,
-        ConferenceCreateRequest::from_buffer(CONFERENCE_CREATE_REQUEST_BUFFER.as_slice()).unwrap()
+        decode(CONFERENCE_CREATE_REQUEST_BUFFER.as_slice()).unwrap()
     );
 }
 
 #[test]
 fn to_buffer_correctly_serializes_conference_create_request() {
-    let mut buf = Vec::new();
-    CONFERENCE_CREATE_REQUEST.to_buffer(&mut buf).unwrap();
+    let data = CONFERENCE_CREATE_REQUEST.clone();
+
+    let buf = encode_vec(&data).unwrap();
+
     assert_eq!(buf.as_slice(), CONFERENCE_CREATE_REQUEST_BUFFER.as_slice());
 }
 
 #[test]
 fn buffer_length_is_correct_for_conference_create_request() {
-    let len = CONFERENCE_CREATE_REQUEST.buffer_length();
+    let len = CONFERENCE_CREATE_REQUEST.size();
     assert_eq!(len, CONFERENCE_CREATE_REQUEST_BUFFER.len());
 }
 
@@ -845,10 +846,7 @@ fn buffer_length_is_correct_for_conference_create_request() {
 fn from_buffer_correctly_parses_conference_create_response() {
     let buffer = CONFERENCE_CREATE_RESPONSE_BUFFER;
 
-    assert_eq!(
-        *CONFERENCE_CREATE_RESPONSE,
-        ConferenceCreateResponse::from_buffer(buffer.as_slice()).unwrap()
-    );
+    assert_eq!(*CONFERENCE_CREATE_RESPONSE, decode(buffer.as_slice()).unwrap());
 }
 
 #[test]
@@ -856,10 +854,9 @@ fn to_buffer_correctly_serializes_conference_create_response() {
     let data = CONFERENCE_CREATE_RESPONSE.clone();
     let expected_buffer = CONFERENCE_CREATE_RESPONSE_BUFFER;
 
-    let mut buff = Vec::new();
-    data.to_buffer(&mut buff).unwrap();
+    let buf = encode_vec(&data).unwrap();
 
-    assert_eq!(expected_buffer.as_slice(), buff.as_slice());
+    assert_eq!(expected_buffer.as_slice(), buf.as_slice());
 }
 
 #[test]
@@ -867,7 +864,7 @@ fn buffer_length_is_correct_for_conference_create_response() {
     let data = CONFERENCE_CREATE_RESPONSE.clone();
     let expected_buffer_len = CONFERENCE_CREATE_RESPONSE_BUFFER.len();
 
-    let len = data.buffer_length();
+    let len = data.size();
 
     assert_eq!(expected_buffer_len, len);
 }

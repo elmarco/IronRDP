@@ -174,8 +174,6 @@ impl<'de> PduDecode<'de> for ClientGccBlocks {
     }
 }
 
-impl_pdu_parsing_max!(ClientGccBlocks);
-
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ServerGccBlocks {
     pub core: ServerCoreData,
@@ -259,8 +257,6 @@ impl<'de> PduDecode<'de> for ServerGccBlocks {
         })
     }
 }
-
-impl_pdu_parsing_max!(ServerGccBlocks);
 
 #[repr(u16)]
 #[derive(Debug, Copy, Clone, FromPrimitive, ToPrimitive)]
