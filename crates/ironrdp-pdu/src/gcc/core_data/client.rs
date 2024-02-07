@@ -182,8 +182,6 @@ impl<'de> PduDecode<'de> for ClientCoreData {
     }
 }
 
-impl_pdu_parsing_max!(ClientCoreData);
-
 /// TS_UD_CS_CORE (optional part)
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct ClientCoreOptionalData {

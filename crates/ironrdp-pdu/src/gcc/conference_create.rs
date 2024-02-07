@@ -1,7 +1,7 @@
 use std::io;
 
 use super::{ClientGccBlocks, GccError, ServerGccBlocks};
-use crate::{mcs, per, PduParsing};
+use crate::{mcs, per, PduEncode, PduParsing};
 
 const CONFERENCE_REQUEST_OBJECT_ID: [u8; 6] = [0, 0, 20, 124, 0, 1];
 const CONFERENCE_REQUEST_CLIENT_TO_SERVER_H221_NON_STANDARD: &[u8; 4] = b"Duca";
@@ -93,7 +93,7 @@ impl PduParsing for ConferenceCreateRequest {
     }
 
     fn to_buffer(&self, mut stream: impl io::Write) -> Result<(), Self::Error> {
-        let gcc_blocks_buffer_length = self.gcc_blocks.buffer_length();
+        let gcc_blocks_buffer_length = self.gcc_blocks.size();
 
         // ConnectData::Key: select type OBJECT_IDENTIFIER
         per::legacy::write_choice(&mut stream, OBJECT_IDENTIFIER_KEY)?;
@@ -131,7 +131,7 @@ impl PduParsing for ConferenceCreateRequest {
     }
 
     fn buffer_length(&self) -> usize {
-        let gcc_blocks_buffer_length = self.gcc_blocks.buffer_length() as u16;
+        let gcc_blocks_buffer_length = self.gcc_blocks.size() as u16;
         per::CHOICE_SIZE
             + CONFERENCE_REQUEST_OBJECT_ID.len()
             + per::sizeof_length(CONFERENCE_REQUEST_CONNECT_PDU_SIZE + gcc_blocks_buffer_length)
@@ -211,7 +211,7 @@ impl PduParsing for ConferenceCreateResponse {
     }
 
     fn to_buffer(&self, mut stream: impl io::Write) -> Result<(), Self::Error> {
-        let gcc_blocks_buffer_length = self.gcc_blocks.buffer_length();
+        let gcc_blocks_buffer_length = self.gcc_blocks.size();
 
         // ConnectData::Key: select type OBJECT_IDENTIFIER
         per::legacy::write_choice(&mut stream, OBJECT_IDENTIFIER_KEY)?;
@@ -248,7 +248,7 @@ impl PduParsing for ConferenceCreateResponse {
     }
 
     fn buffer_length(&self) -> usize {
-        let gcc_blocks_buffer_length = self.gcc_blocks.buffer_length() as u16;
+        let gcc_blocks_buffer_length = self.gcc_blocks.size() as u16;
         per::CHOICE_SIZE
             + CONFERENCE_REQUEST_OBJECT_ID.len()
             + per::sizeof_length(CONFERENCE_RESPONSE_CONNECT_PDU_SIZE + gcc_blocks_buffer_length)

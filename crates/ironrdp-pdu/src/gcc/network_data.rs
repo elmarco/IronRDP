@@ -145,8 +145,6 @@ impl<'de> PduDecode<'de> for ClientNetworkData {
     }
 }
 
-impl_pdu_parsing_max!(ClientNetworkData);
-
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ServerNetworkData {
     pub channel_ids: Vec<u16>,
@@ -222,8 +220,6 @@ impl<'de> PduDecode<'de> for ServerNetworkData {
         Ok(result)
     }
 }
-
-impl_pdu_parsing_max!(ServerNetworkData);
 
 /// Channel Definition Structure (CHANNEL_DEF)
 #[derive(Debug, Clone, PartialEq, Eq)]

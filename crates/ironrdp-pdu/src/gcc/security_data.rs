@@ -186,8 +186,6 @@ impl<'de> PduDecode<'de> for ServerSecurityData {
     }
 }
 
-impl_pdu_parsing_max!(ServerSecurityData);
-
 bitflags! {
     #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
     pub struct EncryptionMethod: u32 {

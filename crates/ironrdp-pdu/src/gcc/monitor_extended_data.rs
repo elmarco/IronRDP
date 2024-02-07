@@ -73,8 +73,6 @@ impl<'de> PduDecode<'de> for ClientMonitorExtendedData {
     }
 }
 
-impl_pdu_parsing_max!(ClientMonitorExtendedData);
-
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ExtendedMonitorInfo {
     pub physical_width: u32,

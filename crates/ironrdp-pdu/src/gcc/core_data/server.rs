@@ -49,8 +49,6 @@ impl<'de> PduDecode<'de> for ServerCoreData {
     }
 }
 
-impl_pdu_parsing_max!(ServerCoreData);
-
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
 pub struct ServerCoreOptionalData {
     pub client_requested_protocols: Option<SecurityProtocol>,
@@ -120,8 +118,6 @@ impl<'de> PduDecode<'de> for ServerCoreOptionalData {
         Ok(optional_data)
     }
 }
-
-impl_pdu_parsing_max!(ServerCoreOptionalData);
 
 bitflags! {
     #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
