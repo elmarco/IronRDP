@@ -6,7 +6,6 @@ use crate::cursor::{ReadCursor, WriteCursor};
 use crate::input::InputEventError;
 use crate::rdp::capability_sets::CapabilitySetsError;
 use crate::rdp::client_info::{ClientInfo, ClientInfoError};
-use crate::rdp::finalization_messages::FinalizationMessagesError;
 use crate::rdp::headers::{BasicSecurityHeader, BasicSecurityHeaderFlags, ShareControlPduType, ShareDataPduType};
 use crate::rdp::server_error_info::ServerSetErrorInfoError;
 use crate::rdp::server_license::ServerLicenseError;
@@ -82,8 +81,6 @@ pub enum RdpError {
     ServerLicenseError(#[from] ServerLicenseError),
     #[error("capability sets error")]
     CapabilitySetsError(#[from] CapabilitySetsError),
-    #[error("finalization PDUs error")]
-    FinalizationMessagesError(#[from] FinalizationMessagesError),
     #[error("invalid RDP security header")]
     InvalidSecurityHeader,
     #[error("invalid RDP Share Control Header: {0}")]
