@@ -188,5 +188,3 @@ pub struct LogonInfo {
     pub user_name: String,
     pub domain_name: String,
 }
-
-impl_pdu_parsing_max!(LogonInfoVersion2);

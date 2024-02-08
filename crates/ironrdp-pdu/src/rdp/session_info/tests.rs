@@ -319,7 +319,7 @@ fn buffer_length_is_correct_for_logon_info_v2() {
 
 #[test]
 fn from_buffer_correct_parses_plain_notify() {
-    match SaveSessionInfoPdu::from_buffer(SESSION_PLAIN_NOTIFY_BUFFER.as_ref())
+    match decode::<SaveSessionInfoPdu>(SESSION_PLAIN_NOTIFY_BUFFER.as_ref())
         .unwrap()
         .info_data
     {
@@ -332,8 +332,7 @@ fn from_buffer_correct_parses_plain_notify() {
 fn to_buffer_correct_serializes_plain_notify() {
     let session_plain_notify = SESSION_PLAIN_NOTIFY.clone();
 
-    let mut buffer = Vec::new();
-    session_plain_notify.to_buffer(&mut buffer).unwrap();
+    let buffer = encode_vec(&session_plain_notify).unwrap();
 
     assert_eq!(SESSION_PLAIN_NOTIFY_BUFFER.as_ref(), buffer.as_slice());
 }
@@ -343,7 +342,7 @@ fn buffer_length_is_correct_for_plain_notify() {
     let session_plain_notify = SESSION_PLAIN_NOTIFY.clone();
     let expected_buf_len = SESSION_PLAIN_NOTIFY_BUFFER.len();
 
-    let len = session_plain_notify.buffer_length();
+    let len = session_plain_notify.size();
 
     assert_eq!(expected_buf_len, len);
 }
@@ -374,8 +373,8 @@ fn buffer_length_is_correct_for_extended_info() {
 
 #[test]
 fn from_buffer_parsing_with_invalid_session_info_type_fails() {
-    match SaveSessionInfoPdu::from_buffer(INVALID_SESSION_INFO_TYPE_BUFFER.as_ref()) {
-        Err(SessionError::InvalidSaveSessionInfoType) => (),
+    match decode::<SaveSessionInfoPdu>(INVALID_SESSION_INFO_TYPE_BUFFER.as_ref()) {
+        Err(e) if matches!(e.kind(), PduErrorKind::InvalidMessage { .. }) => (),
         res => panic!("Expected InvalidSaveSessionInfoType error, got: {res:?}"),
     };
 }

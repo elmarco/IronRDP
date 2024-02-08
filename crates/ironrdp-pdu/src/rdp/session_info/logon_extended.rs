@@ -96,8 +96,6 @@ impl<'de> PduDecode<'de> for LogonInfoExtended {
     }
 }
 
-impl_pdu_parsing!(LogonInfoExtended);
-
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ServerAutoReconnect {
     pub logon_id: u32,
@@ -154,8 +152,6 @@ impl<'de> PduDecode<'de> for ServerAutoReconnect {
     }
 }
 
-impl_pdu_parsing!(ServerAutoReconnect);
-
 /// TS_LOGON_ERRORS_INFO
 ///
 /// [Doc](https://learn.microsoft.com/en-us/openspecs/windows_protocols/ms-rdpbcgr/845eb789-6edf-453a-8b0e-c976823d1f72)
@@ -207,8 +203,6 @@ impl<'de> PduDecode<'de> for LogonErrorsInfo {
         Ok(Self { error_type, error_data })
     }
 }
-
-impl_pdu_parsing!(LogonErrorsInfo);
 
 bitflags! {
     #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
