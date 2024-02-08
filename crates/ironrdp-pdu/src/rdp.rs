@@ -7,7 +7,6 @@ use crate::input::InputEventError;
 use crate::rdp::capability_sets::CapabilitySetsError;
 use crate::rdp::client_info::{ClientInfo, ClientInfoError};
 use crate::rdp::headers::{BasicSecurityHeader, BasicSecurityHeaderFlags, ShareControlPduType, ShareDataPduType};
-use crate::rdp::server_error_info::ServerSetErrorInfoError;
 use crate::rdp::server_license::ServerLicenseError;
 use crate::{PduDecode, PduEncode, PduError, PduResult};
 
@@ -95,8 +94,6 @@ pub enum RdpError {
     UnexpectedShareDataPdu(ShareDataPduType),
     #[error("save session info PDU error")]
     SaveSessionInfoError(#[from] session_info::SessionError),
-    #[error("server set error info PDU error")]
-    ServerSetErrorInfoError(#[from] ServerSetErrorInfoError),
     #[error("input event PDU error")]
     InputEventError(#[from] InputEventError),
     #[error("not enough bytes")]
