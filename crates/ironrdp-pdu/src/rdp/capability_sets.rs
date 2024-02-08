@@ -1,12 +1,11 @@
 use std::io;
 
-use byteorder::{LittleEndian, ReadBytesExt as _, WriteBytesExt as _};
 use num_derive::{FromPrimitive, ToPrimitive};
 use num_traits::{FromPrimitive as _, ToPrimitive as _};
 use thiserror::Error;
 
 use crate::cursor::{ReadCursor, WriteCursor};
-use crate::{decode, PduDecode, PduEncode, PduError, PduParsing, PduResult};
+use crate::{decode, utils, PduDecode, PduEncode, PduError, PduResult};
 
 mod bitmap;
 mod bitmap_cache;
@@ -65,27 +64,41 @@ pub struct ServerDemandActive {
     pub pdu: DemandActive,
 }
 
-impl PduParsing for ServerDemandActive {
-    type Error = CapabilitySetsError;
+impl ServerDemandActive {
+    const NAME: &'static str = "ServerDemandActive";
 
-    fn from_buffer(mut stream: impl io::Read) -> Result<Self, Self::Error> {
-        let pdu = DemandActive::from_buffer(&mut stream)?;
-        let _session_id = stream.read_u32::<LittleEndian>()?;
+    const FIXED_PART_SIZE: usize = SESSION_ID_FIELD_SIZE;
+}
 
-        Ok(Self { pdu })
-    }
+impl PduEncode for ServerDemandActive {
+    fn encode(&self, dst: &mut WriteCursor<'_>) -> PduResult<()> {
+        ensure_size!(in: dst, size: self.size());
 
-    fn to_buffer(&self, mut stream: impl io::Write) -> Result<(), Self::Error> {
-        self.pdu.to_buffer(&mut stream)?;
-        stream.write_u32::<LittleEndian>(0)?; // This field is ignored by the client
+        self.pdu.encode(dst)?;
+        dst.write_u32(0); // This field is ignored by the client
 
         Ok(())
     }
 
-    fn buffer_length(&self) -> usize {
-        self.pdu.buffer_length() + SESSION_ID_FIELD_SIZE
+    fn name(&self) -> &'static str {
+        Self::NAME
+    }
+
+    fn size(&self) -> usize {
+        Self::FIXED_PART_SIZE + self.pdu.size()
     }
 }
+
+impl<'de> PduDecode<'de> for ServerDemandActive {
+    fn decode(src: &mut ReadCursor<'de>) -> PduResult<Self> {
+        let pdu = DemandActive::decode(src)?;
+        let _session_id = src.read_u32();
+
+        Ok(Self { pdu })
+    }
+}
+
+impl_pdu_parsing_max!(ServerDemandActive);
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ClientConfirmActive {
@@ -99,26 +112,38 @@ pub struct ClientConfirmActive {
     pub pdu: DemandActive,
 }
 
-impl PduParsing for ClientConfirmActive {
-    type Error = CapabilitySetsError;
+impl ClientConfirmActive {
+    const NAME: &'static str = "ClientConfirmActive";
 
-    fn from_buffer(mut stream: impl io::Read) -> Result<Self, Self::Error> {
-        let originator_id = stream.read_u16::<LittleEndian>()?;
-        let pdu = DemandActive::from_buffer(&mut stream)?;
+    const FIXED_PART_SIZE: usize = ORIGINATOR_ID_FIELD_SIZE;
+}
+
+impl PduEncode for ClientConfirmActive {
+    fn encode(&self, dst: &mut WriteCursor<'_>) -> PduResult<()> {
+        dst.write_u16(self.originator_id);
+
+        Ok(self.pdu.encode(dst)?)
+    }
+
+    fn name(&self) -> &'static str {
+        Self::NAME
+    }
+
+    fn size(&self) -> usize {
+        Self::FIXED_PART_SIZE + self.pdu.size()
+    }
+}
+
+impl<'de> PduDecode<'de> for ClientConfirmActive {
+    fn decode(src: &mut ReadCursor<'de>) -> PduResult<Self> {
+        let originator_id = src.read_u16();
+        let pdu = DemandActive::decode(src)?;
 
         Ok(Self { originator_id, pdu })
     }
-
-    fn to_buffer(&self, mut stream: impl io::Write) -> Result<(), Self::Error> {
-        stream.write_u16::<LittleEndian>(self.originator_id)?;
-
-        self.pdu.to_buffer(&mut stream)
-    }
-
-    fn buffer_length(&self) -> usize {
-        self.pdu.buffer_length() + ORIGINATOR_ID_FIELD_SIZE
-    }
 }
+
+impl_pdu_parsing_max!(ClientConfirmActive);
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct DemandActive {
@@ -126,69 +151,79 @@ pub struct DemandActive {
     pub capability_sets: Vec<CapabilitySet>,
 }
 
-impl PduParsing for DemandActive {
-    type Error = CapabilitySetsError;
+impl DemandActive {
+    const NAME: &'static str = "DemandActive";
 
-    fn from_buffer(mut stream: impl io::Read) -> Result<Self, Self::Error> {
-        let source_descriptor_length = stream.read_u16::<LittleEndian>()? as usize;
+    const FIXED_PART_SIZE: usize = SOURCE_DESCRIPTOR_LENGTH_FIELD_SIZE + COMBINED_CAPABILITIES_LENGTH_FIELD_SIZE;
+}
+
+impl PduEncode for DemandActive {
+    fn encode(&self, dst: &mut WriteCursor<'_>) -> PduResult<()> {
+        ensure_size!(in: dst, size: self.size());
+
+        let combined_length = self.capability_sets.iter().map(PduEncode::size).sum::<usize>()
+            + NUMBER_CAPABILITIES_FIELD_SIZE
+            + PADDING_SIZE;
+
+        dst.write_u16(cast_length!(
+            "sourceDescLen",
+            self.source_descriptor.len() + NULL_TERMINATOR.as_bytes().len()
+        )?);
+        dst.write_u16(cast_length!("combinedLen", combined_length)?);
+        dst.write_slice(self.source_descriptor.as_ref());
+        dst.write_slice(NULL_TERMINATOR.as_bytes());
+        dst.write_u16(cast_length!("len", self.capability_sets.len())?);
+        write_padding!(dst, 2);
+
+        for capability_set in self.capability_sets.iter() {
+            capability_set.encode(dst)?;
+        }
+
+        Ok(())
+    }
+
+    fn name(&self) -> &'static str {
+        Self::NAME
+    }
+
+    fn size(&self) -> usize {
+        Self::FIXED_PART_SIZE
+            + self.source_descriptor.len()
+            + 1
+            + NUMBER_CAPABILITIES_FIELD_SIZE
+            + PADDING_SIZE
+            + self.capability_sets.iter().map(PduEncode::size).sum::<usize>()
+    }
+}
+
+impl<'de> PduDecode<'de> for DemandActive {
+    fn decode(src: &mut ReadCursor<'de>) -> PduResult<Self> {
+        ensure_fixed_part_size!(in: src);
+
+        let source_descriptor_length = src.read_u16() as usize;
         // The combined size in bytes of the numberCapabilities, pad2Octets, and capabilitySets fields.
-        let _combined_capabilities_length = stream.read_u16::<LittleEndian>()? as usize;
+        let _combined_capabilities_length = src.read_u16() as usize;
 
-        let mut source_descriptor_buffer = vec![0; source_descriptor_length];
-        stream.read_exact(source_descriptor_buffer.as_mut())?;
-        let source_descriptor = String::from_utf8(source_descriptor_buffer)?
-            .trim_end_matches(NULL_TERMINATOR)
-            .to_owned();
+        ensure_size!(in: src, size: source_descriptor_length);
+        let source_descriptor = utils::decode_string(
+            src.read_slice(source_descriptor_length),
+            utils::CharacterSet::Ansi,
+            false,
+        )?;
 
-        let capability_sets_count = stream.read_u16::<LittleEndian>()? as usize;
-        let _padding = stream.read_u16::<LittleEndian>()?;
+        ensure_size!(in: src, size: 2 + 2);
+        let capability_sets_count = src.read_u16() as usize;
+        let _padding = src.read_u16();
 
         let mut capability_sets = Vec::with_capacity(capability_sets_count);
         for _ in 0..capability_sets_count {
-            capability_sets.push(CapabilitySet::from_buffer(&mut stream)?);
+            capability_sets.push(CapabilitySet::decode(src)?);
         }
 
         Ok(Self {
             source_descriptor,
             capability_sets,
         })
-    }
-
-    fn to_buffer(&self, mut stream: impl io::Write) -> Result<(), Self::Error> {
-        let combined_length = self
-            .capability_sets
-            .iter()
-            .map(PduParsing::buffer_length)
-            .sum::<usize>()
-            + NUMBER_CAPABILITIES_FIELD_SIZE
-            + PADDING_SIZE;
-
-        stream.write_u16::<LittleEndian>((self.source_descriptor.len() + NULL_TERMINATOR.as_bytes().len()) as u16)?;
-        stream.write_u16::<LittleEndian>(combined_length as u16)?;
-        stream.write_all(self.source_descriptor.as_ref())?;
-        stream.write_all(NULL_TERMINATOR.as_bytes())?;
-        stream.write_u16::<LittleEndian>(self.capability_sets.len() as u16)?;
-        stream.write_u16::<LittleEndian>(0)?; // padding
-
-        for capability_set in self.capability_sets.iter() {
-            capability_set.to_buffer(&mut stream)?;
-        }
-
-        Ok(())
-    }
-
-    fn buffer_length(&self) -> usize {
-        SOURCE_DESCRIPTOR_LENGTH_FIELD_SIZE
-            + COMBINED_CAPABILITIES_LENGTH_FIELD_SIZE
-            + self.source_descriptor.len()
-            + 1
-            + NUMBER_CAPABILITIES_FIELD_SIZE
-            + PADDING_SIZE
-            + self
-                .capability_sets
-                .iter()
-                .map(PduParsing::buffer_length)
-                .sum::<usize>()
     }
 }
 
@@ -502,8 +537,6 @@ impl<'de> PduDecode<'de> for CapabilitySet {
         }
     }
 }
-
-impl_pdu_parsing_max!(CapabilitySet);
 
 #[derive(Copy, Clone, Debug, FromPrimitive, ToPrimitive)]
 enum CapabilitySetType {

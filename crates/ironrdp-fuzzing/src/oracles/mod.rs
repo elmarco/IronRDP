@@ -24,7 +24,7 @@ pub fn pdu_decode(data: &[u8]) {
     let _ = ConnectInitial::from_buffer(data);
     let _ = ConnectResponse::from_buffer(data);
     let _ = decode::<ClientInfoPdu>(data);
-    let _ = capability_sets::CapabilitySet::from_buffer(data);
+    let _ = decode::<capability_sets::CapabilitySet>(data);
     let _ = headers::ShareControlHeader::from_buffer(data);
     let _ = decode::<pcb::PreconnectionBlob>(data);
     let _ = server_error_info::ServerSetErrorInfoPdu::from_buffer(data);
