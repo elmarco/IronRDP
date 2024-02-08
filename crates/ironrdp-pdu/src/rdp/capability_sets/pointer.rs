@@ -1,8 +1,8 @@
 #[cfg(test)]
 mod tests;
 
-use crate::cursor::{WriteCursor, ReadCursor};
-use crate::{PduEncode, PduResult, PduDecode};
+use crate::cursor::{ReadCursor, WriteCursor};
+use crate::{PduDecode, PduEncode, PduResult};
 
 const POINTER_LENGTH: usize = 6;
 
