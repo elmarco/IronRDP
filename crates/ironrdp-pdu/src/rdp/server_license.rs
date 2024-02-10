@@ -7,8 +7,9 @@ use num_derive::{FromPrimitive, ToPrimitive};
 use num_traits::{FromPrimitive, ToPrimitive};
 use thiserror::Error;
 
+use crate::cursor::{ReadCursor, WriteCursor};
 use crate::rdp::headers::{BasicSecurityHeader, BasicSecurityHeaderFlags, BASIC_SECURITY_HEADER_SIZE};
-use crate::{PduError, PduParsing};
+use crate::{PduDecode, PduEncode, PduError, PduParsing, PduResult};
 
 #[cfg(test)]
 mod tests;
@@ -61,34 +62,60 @@ pub struct LicenseHeader {
     pub preamble_message_size: u16,
 }
 
-impl PduParsing for LicenseHeader {
-    type Error = ServerLicenseError;
+impl LicenseHeader {
+    const NAME: &'static str = "LicenseHeader";
 
-    fn from_buffer(mut stream: impl io::Read) -> Result<Self, Self::Error> {
-        let security_header = BasicSecurityHeader::from_buffer(&mut stream).map_err(|err| {
-            ServerLicenseError::IOError(io::Error::new(
-                io::ErrorKind::InvalidData,
-                format!("Unable to read License Header from buffer. Error: {err}"),
-            ))
-        })?;
+    const FIXED_PART_SIZE: usize = PREAMBLE_SIZE + BASIC_SECURITY_HEADER_SIZE;
+}
+
+impl PduEncode for LicenseHeader {
+    fn encode(&self, dst: &mut WriteCursor<'_>) -> PduResult<()> {
+        ensure_fixed_part_size!(in: dst);
+
+        self.security_header.encode(dst)?;
+
+        let flags_with_version = self.preamble_flags.bits() | self.preamble_version.to_u8().unwrap();
+
+        dst.write_u8(self.preamble_message_type.to_u8().unwrap());
+        dst.write_u8(flags_with_version);
+        dst.write_u16(self.preamble_message_size); // msg size
+
+        Ok(())
+    }
+
+    fn name(&self) -> &'static str {
+        Self::NAME
+    }
+
+    fn size(&self) -> usize {
+        Self::FIXED_PART_SIZE
+    }
+}
+
+impl<'de> PduDecode<'de> for LicenseHeader {
+    fn decode(src: &mut ReadCursor<'de>) -> PduResult<Self> {
+        ensure_fixed_part_size!(in: src);
+
+        let security_header = BasicSecurityHeader::decode(src)?;
 
         if !security_header.flags.contains(BasicSecurityHeaderFlags::LICENSE_PKT) {
-            return Err(ServerLicenseError::InvalidSecurityFlags);
+            return Err(invalid_message_err!(
+                "securityHeaderFlags",
+                "invalid security header flags"
+            ));
         }
 
-        let preamble_message_type =
-            PreambleType::from_u8(stream.read_u8()?).ok_or(ServerLicenseError::InvalidLicenseType)?;
+        let preamble_message_type = PreambleType::from_u8(src.read_u8())
+            .ok_or_else(|| invalid_message_err!("preambleType", "invalid license type"))?;
 
-        let flags_with_version = stream.read_u8()?;
-        let preamble_message_size = stream.read_u16::<LittleEndian>()?;
+        let flags_with_version = src.read_u8();
+        let preamble_message_size = src.read_u16();
 
         let preamble_flags = PreambleFlags::from_bits(flags_with_version & !PROTOCOL_VERSION_MASK)
-            .ok_or_else(|| ServerLicenseError::InvalidPreamble(String::from("Got invalid flags field")))?;
+            .ok_or_else(|| invalid_message_err!("preambleFlags", "Got invalid flags field"))?;
 
-        let preamble_version =
-            PreambleVersion::from_u8(flags_with_version & PROTOCOL_VERSION_MASK).ok_or_else(|| {
-                ServerLicenseError::InvalidPreamble(String::from("Got invalid version in the flags field"))
-            })?;
+        let preamble_version = PreambleVersion::from_u8(flags_with_version & PROTOCOL_VERSION_MASK)
+            .ok_or_else(|| invalid_message_err!("preambleVersion", "Got invalid version in the flags filed"))?;
 
         Ok(Self {
             security_header,
@@ -98,28 +125,9 @@ impl PduParsing for LicenseHeader {
             preamble_message_size,
         })
     }
-
-    fn to_buffer(&self, mut stream: impl io::Write) -> Result<(), Self::Error> {
-        self.security_header.to_buffer(&mut stream).map_err(|err| {
-            ServerLicenseError::IOError(io::Error::new(
-                io::ErrorKind::InvalidData,
-                format!("Unable to write License Header to buffer. Error: {err}"),
-            ))
-        })?;
-
-        let flags_with_version = self.preamble_flags.bits() | self.preamble_version.to_u8().unwrap();
-
-        stream.write_u8(self.preamble_message_type.to_u8().unwrap())?;
-        stream.write_u8(flags_with_version)?;
-        stream.write_u16::<LittleEndian>(self.preamble_message_size)?; // msg size
-
-        Ok(())
-    }
-
-    fn buffer_length(&self) -> usize {
-        PREAMBLE_SIZE + BASIC_SECURITY_HEADER_SIZE
-    }
 }
+
+impl_pdu_parsing!(LicenseHeader);
 
 /// [2.2.1.12.1.1] Licensing Preamble (LICENSE_PREAMBLE)
 ///
