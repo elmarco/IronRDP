@@ -1,7 +1,6 @@
 use std::io;
 
 use bitflags::bitflags;
-use byteorder::{LittleEndian, ReadBytesExt, WriteBytesExt};
 use md5::Digest;
 use num_derive::{FromPrimitive, ToPrimitive};
 use num_traits::{FromPrimitive, ToPrimitive};
@@ -270,43 +269,49 @@ pub struct BlobHeader {
 }
 
 impl BlobHeader {
+    const NAME: &'static str = "BlobHeader";
+
+    const FIXED_PART_SIZE: usize = 2 /* blobType */ + 2 /* len */;
+
     pub fn new(blob_type: BlobType, length: usize) -> Self {
         Self { blob_type, length }
     }
+}
 
-    pub fn read_from_buffer(
-        required_blob_type: BlobType,
-        mut stream: impl io::Read,
-    ) -> Result<Self, ServerLicenseError> {
-        let blob_type = stream.read_u16::<LittleEndian>()?;
-        let blob_type = BlobType::from_u16(blob_type).ok_or(ServerLicenseError::InvalidBlobType)?;
+impl PduEncode for BlobHeader {
+    fn encode(&self, dst: &mut WriteCursor<'_>) -> PduResult<()> {
+        ensure_fixed_part_size!(in: dst);
 
-        if blob_type != required_blob_type {
-            return Err(ServerLicenseError::InvalidBlobType);
-        }
-
-        let length = stream.read_u16::<LittleEndian>()? as usize;
-
-        Ok(Self { blob_type, length })
-    }
-
-    pub fn read_any_blob_from_buffer(mut stream: impl io::Read) -> Result<Self, ServerLicenseError> {
-        let _blob_type = stream.read_u16::<LittleEndian>()?;
-        let length = stream.read_u16::<LittleEndian>()? as usize;
-
-        Ok(Self {
-            blob_type: BlobType::Any,
-            length,
-        })
-    }
-
-    pub fn write_to_buffer(&self, mut stream: impl io::Write) -> Result<(), ServerLicenseError> {
-        stream.write_u16::<LittleEndian>(self.blob_type.to_u16().unwrap())?;
-        stream.write_u16::<LittleEndian>(self.length as u16)?;
+        dst.write_u16(self.blob_type.to_u16().unwrap());
+        dst.write_u16(cast_length!("len", self.length)?);
 
         Ok(())
     }
+
+    fn name(&self) -> &'static str {
+        Self::NAME
+    }
+
+    fn size(&self) -> usize {
+        Self::FIXED_PART_SIZE
+    }
 }
+
+impl<'de> PduDecode<'de> for BlobHeader {
+    fn decode(src: &mut ReadCursor<'de>) -> PduResult<Self> {
+        ensure_fixed_part_size!(in: src);
+
+        let blob_type = src.read_u16();
+        let blob_type =
+            BlobType::from_u16(blob_type).ok_or_else(|| invalid_message_err!("blobType", "invalid blob type"))?;
+
+        let length = cast_length!("len", src.read_u16())?;
+
+        Ok(Self { blob_type, length })
+    }
+}
+
+impl_pdu_parsing!(BlobHeader);
 
 fn compute_mac_data(mac_salt_key: &[u8], data: &[u8]) -> Vec<u8> {
     let data_len_buffer = (data.len() as u32).to_le_bytes();
