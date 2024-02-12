@@ -10,8 +10,9 @@ use super::{
     BLOB_LENGTH_SIZE, BLOB_TYPE_SIZE, MAC_SIZE, UTF16_NULL_TERMINATOR_SIZE, UTF8_NULL_TERMINATOR_SIZE,
 };
 use crate::crypto::rc4::Rc4;
+use crate::cursor::{ReadCursor, WriteCursor};
 use crate::utils::CharacterSet;
-use crate::{utils, PduParsing};
+use crate::{utils, PduDecode, PduEncode, PduParsing, PduResult};
 
 const NEW_LICENSE_INFO_STATIC_FIELDS_SIZE: usize = 20;
 
@@ -40,33 +41,51 @@ impl ServerUpgradeLicense {
     }
 }
 
-impl PduParsing for ServerUpgradeLicense {
-    type Error = ServerLicenseError;
+impl ServerUpgradeLicense {
+    const NAME: &'static str = "ServerUpgradeLicense";
+}
 
-    fn from_buffer(mut stream: impl io::Read) -> Result<Self, Self::Error> {
-        let license_header = read_license_header(PreambleType::NewLicense, &mut stream)?;
+impl PduEncode for ServerUpgradeLicense {
+    fn encode(&self, dst: &mut WriteCursor<'_>) -> PduResult<()> {
+        ensure_size!(in: dst, size: self.size());
+
+        self.license_header.encode(dst)?;
+        BlobHeader::new(BlobType::EncryptedData, self.encrypted_license_info.len()).encode(dst)?;
+        dst.write_slice(&self.encrypted_license_info);
+        dst.write_slice(&self.mac_data);
+
+        Ok(())
+    }
+
+    fn name(&self) -> &'static str {
+        Self::NAME
+    }
+
+    fn size(&self) -> usize {
+        self.license_header.size() + BLOB_LENGTH_SIZE + BLOB_TYPE_SIZE + self.encrypted_license_info.len() + MAC_SIZE
+    }
+}
+
+impl<'de> PduDecode<'de> for ServerUpgradeLicense {
+    fn decode(src: &mut ReadCursor<'de>) -> PduResult<Self> {
+        let license_header = read_license_header(PreambleType::NewLicense, src)?;
 
         if license_header.preamble_message_type != PreambleType::UpgradeLicense
             && license_header.preamble_message_type != PreambleType::NewLicense
         {
-            return Err(ServerLicenseError::InvalidPreamble(format!(
-                "Got {:?} but expected {:?} or {:?}",
-                license_header.preamble_message_type,
-                PreambleType::UpgradeLicense,
-                PreambleType::NewLicense
-            )));
+            return Err(invalid_message_err!(
+                "preambleType",
+                "got unexpected message preamble type"
+            ));
         }
 
-        let encrypted_license_info_blob = BlobHeader::from_buffer(&mut stream)?;
+        let encrypted_license_info_blob = BlobHeader::decode(src)?;
         if encrypted_license_info_blob.blob_type != BlobType::EncryptedData {
-            return Err(ServerLicenseError::InvalidBlobType);
+            return Err(invalid_message_err!("blobType", "unexpected blob type"));
         }
 
-        let mut encrypted_license_info = vec![0u8; encrypted_license_info_blob.length];
-        stream.read_exact(&mut encrypted_license_info)?;
-
-        let mut mac_data = vec![0u8; MAC_SIZE];
-        stream.read_exact(&mut mac_data)?;
+        let encrypted_license_info = src.read_slice(encrypted_license_info_blob.length).into();
+        let mac_data = src.read_slice(MAC_SIZE).into();
 
         Ok(Self {
             license_header,
@@ -74,26 +93,9 @@ impl PduParsing for ServerUpgradeLicense {
             mac_data,
         })
     }
-
-    fn to_buffer(&self, mut stream: impl io::Write) -> Result<(), Self::Error> {
-        self.license_header.to_buffer(&mut stream)?;
-
-        BlobHeader::new(BlobType::EncryptedData, self.encrypted_license_info.len()).to_buffer(&mut stream)?;
-        stream.write_all(&self.encrypted_license_info)?;
-
-        stream.write_all(&self.mac_data)?;
-
-        Ok(())
-    }
-
-    fn buffer_length(&self) -> usize {
-        self.license_header.buffer_length()
-            + BLOB_LENGTH_SIZE
-            + BLOB_TYPE_SIZE
-            + self.encrypted_license_info.len()
-            + MAC_SIZE
-    }
 }
+
+impl_pdu_parsing_max!(ServerUpgradeLicense);
 
 #[derive(Debug, PartialEq, Eq)]
 pub struct NewLicenseInformation {
