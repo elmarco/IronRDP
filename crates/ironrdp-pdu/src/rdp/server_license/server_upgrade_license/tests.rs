@@ -5,6 +5,7 @@ use crate::rdp::server_license::{
     BasicSecurityHeader, BasicSecurityHeaderFlags, PreambleFlags, PreambleVersion, BASIC_SECURITY_HEADER_SIZE,
     PREAMBLE_SIZE,
 };
+use crate::{decode, encode_vec, PduParsing};
 
 const SERVER_UPGRADE_LICENSE_BUFFER: [u8; 2059] = [
     0x80, 0x00, // flags
@@ -272,16 +273,13 @@ lazy_static! {
 fn from_buffer_correctly_parses_new_license_information() {
     assert_eq!(
         *NEW_LICENSE_INFORMATION,
-        NewLicenseInformation::from_buffer(NEW_LICENSE_INFORMATION_BUFFER.as_ref()).unwrap()
+        decode(NEW_LICENSE_INFORMATION_BUFFER.as_ref()).unwrap()
     );
 }
 
 #[test]
 fn to_buffer_correctly_serializes_new_license_information() {
-    let mut serialized_new_license_info = Vec::new();
-    NEW_LICENSE_INFORMATION
-        .to_buffer(&mut serialized_new_license_info)
-        .unwrap();
+    let serialized_new_license_info = encode_vec(&*NEW_LICENSE_INFORMATION).unwrap();
 
     assert_eq!(
         NEW_LICENSE_INFORMATION_BUFFER.as_ref(),
@@ -291,10 +289,7 @@ fn to_buffer_correctly_serializes_new_license_information() {
 
 #[test]
 fn buffer_length_is_correct_for_new_license_information() {
-    assert_eq!(
-        NEW_LICENSE_INFORMATION_BUFFER.len(),
-        NEW_LICENSE_INFORMATION.buffer_length()
-    );
+    assert_eq!(NEW_LICENSE_INFORMATION_BUFFER.len(), NEW_LICENSE_INFORMATION.size());
 }
 
 #[test]
