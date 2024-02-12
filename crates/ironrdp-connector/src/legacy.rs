@@ -3,7 +3,7 @@
 use std::borrow::Cow;
 
 use ironrdp_pdu::write_buf::WriteBuf;
-use ironrdp_pdu::{rdp, x224, PduParsing};
+use ironrdp_pdu::{decode, rdp, x224, PduDecode, PduParsing};
 
 use crate::{ConnectorError, ConnectorErrorExt as _, ConnectorResult};
 
@@ -69,8 +69,17 @@ pub struct SendDataIndicationCtx<'a> {
     pub user_data: &'a [u8],
 }
 
-impl SendDataIndicationCtx<'_> {
-    pub fn decode_user_data<T>(&self) -> ConnectorResult<T>
+impl<'a> SendDataIndicationCtx<'a> {
+    pub fn decode_user_data<'de, T>(&self) -> ConnectorResult<T>
+    where
+        T: PduDecode<'de>,
+        'a: 'de,
+    {
+        let msg = decode::<T>(self.user_data).map_err(ConnectorError::pdu)?;
+        Ok(msg)
+    }
+
+    pub fn from_buffer_user_data<T>(&self) -> ConnectorResult<T>
     where
         T: PduParsing,
         ConnectorError: From<T::Error>,
@@ -138,7 +147,7 @@ pub struct ShareControlCtx {
 }
 
 pub fn decode_share_control(ctx: SendDataIndicationCtx<'_>) -> ConnectorResult<ShareControlCtx> {
-    let user_msg = ctx.decode_user_data::<rdp::headers::ShareControlHeader>()?;
+    let user_msg = ctx.from_buffer_user_data::<rdp::headers::ShareControlHeader>()?;
 
     Ok(ShareControlCtx {
         initiator_id: ctx.initiator_id,
