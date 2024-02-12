@@ -1,10 +1,9 @@
 #[cfg(test)]
 mod test;
 
-use std::io;
 use std::io::Write;
 
-use byteorder::{LittleEndian, ReadBytesExt as _, WriteBytesExt as _};
+use byteorder::{LittleEndian, WriteBytesExt as _};
 use md5::Digest;
 use num_derive::{FromPrimitive, ToPrimitive};
 use num_traits::{FromPrimitive as _, ToPrimitive as _};
@@ -251,26 +250,40 @@ pub(crate) struct ClientHardwareIdentification {
     pub(crate) data: Vec<u8>,
 }
 
-impl PduParsing for ClientHardwareIdentification {
-    type Error = ServerLicenseError;
+impl ClientHardwareIdentification {
+    const NAME: &'static str = "ClientHardwareIdentification";
 
-    fn from_buffer(mut stream: impl io::Read) -> Result<Self, Self::Error> {
-        let platform_id = stream.read_u32::<LittleEndian>()?;
+    const FIXED_PART_SIZE: usize = CLIENT_HARDWARE_IDENTIFICATION_SIZE;
+}
 
-        let mut data = vec![0u8; MAC_SIZE];
-        stream.read_exact(&mut data)?;
+impl PduEncode for ClientHardwareIdentification {
+    fn encode(&self, dst: &mut WriteCursor<'_>) -> PduResult<()> {
+        ensure_fixed_part_size!(in: dst);
 
-        Ok(Self { platform_id, data })
-    }
-
-    fn to_buffer(&self, mut stream: impl Write) -> Result<(), Self::Error> {
-        stream.write_u32::<LittleEndian>(self.platform_id)?;
-        stream.write_all(&self.data)?;
+        dst.write_u32(self.platform_id);
+        dst.write_slice(&self.data);
 
         Ok(())
     }
 
-    fn buffer_length(&self) -> usize {
-        CLIENT_HARDWARE_IDENTIFICATION_SIZE
+    fn name(&self) -> &'static str {
+        Self::NAME
+    }
+
+    fn size(&self) -> usize {
+        Self::FIXED_PART_SIZE
     }
 }
+
+impl<'de> PduDecode<'de> for ClientHardwareIdentification {
+    fn decode(src: &mut ReadCursor<'de>) -> PduResult<Self> {
+        ensure_fixed_part_size!(in: src);
+
+        let platform_id = src.read_u32();
+        let data = src.read_slice(MAC_SIZE).into();
+
+        Ok(Self { platform_id, data })
+    }
+}
+
+impl_pdu_parsing!(ClientHardwareIdentification);

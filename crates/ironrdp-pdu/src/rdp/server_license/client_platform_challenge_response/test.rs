@@ -104,16 +104,13 @@ fn buffer_length_is_correct_for_platform_challenge_response_data() {
 fn from_buffer_correctly_parses_client_hardware_identification() {
     assert_eq!(
         *CLIENT_HARDWARE_IDENTIFICATION,
-        ClientHardwareIdentification::from_buffer(CLIENT_HARDWARE_IDENTIFICATION_BUFFER.as_ref()).unwrap()
+        decode(CLIENT_HARDWARE_IDENTIFICATION_BUFFER.as_ref()).unwrap()
     );
 }
 
 #[test]
 fn to_buffer_correctly_serializes_client_hardware_identification() {
-    let mut serialized_hardware_identification = Vec::new();
-    CLIENT_HARDWARE_IDENTIFICATION
-        .to_buffer(&mut serialized_hardware_identification)
-        .unwrap();
+    let serialized_hardware_identification = encode_vec(&*CLIENT_HARDWARE_IDENTIFICATION).unwrap();
 
     assert_eq!(
         CLIENT_HARDWARE_IDENTIFICATION_BUFFER.as_ref(),
@@ -125,7 +122,7 @@ fn to_buffer_correctly_serializes_client_hardware_identification() {
 fn buffer_length_is_correct_for_client_hardware_identification() {
     assert_eq!(
         CLIENT_HARDWARE_IDENTIFICATION_BUFFER.len(),
-        CLIENT_HARDWARE_IDENTIFICATION.buffer_length()
+        CLIENT_HARDWARE_IDENTIFICATION.size()
     );
 }
 
@@ -133,16 +130,13 @@ fn buffer_length_is_correct_for_client_hardware_identification() {
 fn from_buffer_correctly_parses_client_platform_challenge_response() {
     assert_eq!(
         *CLIENT_PLATFORM_CHALLENGE_RESPONSE,
-        ClientPlatformChallengeResponse::from_buffer(CLIENT_PLATFORM_CHALLENGE_RESPONSE_BUFFER.as_ref()).unwrap()
+        decode(CLIENT_PLATFORM_CHALLENGE_RESPONSE_BUFFER.as_ref()).unwrap()
     );
 }
 
 #[test]
 fn to_buffer_correctly_serializes_client_platform_challenge_response() {
-    let mut serialized_response = Vec::new();
-    CLIENT_PLATFORM_CHALLENGE_RESPONSE
-        .to_buffer(&mut serialized_response)
-        .unwrap();
+    let serialized_response = encode_vec(&*CLIENT_PLATFORM_CHALLENGE_RESPONSE).unwrap();
 
     assert_eq!(
         CLIENT_PLATFORM_CHALLENGE_RESPONSE_BUFFER.as_ref(),
