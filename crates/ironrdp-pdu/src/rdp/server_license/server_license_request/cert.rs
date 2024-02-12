@@ -3,7 +3,10 @@ use std::io;
 use byteorder::{LittleEndian, ReadBytesExt, WriteBytesExt};
 
 use super::{BlobHeader, BlobType, ServerLicenseError, KEY_EXCHANGE_ALGORITHM_RSA};
-use crate::PduParsing;
+use crate::{
+    cursor::{ReadCursor, WriteCursor},
+    PduDecode, PduEncode, PduParsing, PduResult,
+};
 
 pub const SIGNATURE_ALGORITHM_RSA: u32 = 1;
 pub const PROP_CERT_NO_BLOBS_SIZE: usize = 8;
@@ -14,9 +17,9 @@ pub const RSA_KEY_PADDING_LENGTH: u32 = 8;
 pub const RSA_SENTINEL: u32 = 0x3141_5352;
 pub const RSA_KEY_SIZE_WITHOUT_MODULUS: usize = 20;
 
-const MIN_CERTIFICATE_AMOUNT: u32 = 2;
-const MAX_CERTIFICATE_AMOUNT: u32 = 200;
-const MAX_CERTIFICATE_LEN: u32 = 4096;
+const MIN_CERTIFICATE_AMOUNT: usize = 2;
+const MAX_CERTIFICATE_AMOUNT: usize = 200;
+const MAX_CERTIFICATE_LEN: usize = 4096;
 
 #[derive(Debug, PartialEq, Eq)]
 pub enum CertificateType {
@@ -32,51 +35,32 @@ pub struct X509CertificateChain {
     pub certificate_array: Vec<Vec<u8>>,
 }
 
-impl PduParsing for X509CertificateChain {
-    type Error = ServerLicenseError;
+impl X509CertificateChain {
+    const NAME: &'static str = "X509CertificateChain";
+}
 
-    fn from_buffer(mut stream: impl io::Read) -> Result<Self, Self::Error> {
-        let certificate_count = stream.read_u32::<LittleEndian>()?;
-        if !(MIN_CERTIFICATE_AMOUNT..MAX_CERTIFICATE_AMOUNT).contains(&certificate_count) {
-            return Err(ServerLicenseError::InvalidX509CertificatesAmount);
-        }
+impl PduEncode for X509CertificateChain {
+    fn encode(&self, dst: &mut WriteCursor<'_>) -> PduResult<()> {
+        ensure_size!(in: dst, size: self.size());
 
-        let certificate_array: Vec<_> = (0..certificate_count)
-            .map(|_| {
-                let certificate_len = stream.read_u32::<LittleEndian>()?;
-                if certificate_len > MAX_CERTIFICATE_LEN {
-                    return Err(ServerLicenseError::InvalidCertificateLength(certificate_len));
-                }
-
-                let mut certificate = vec![0u8; certificate_len as usize];
-                stream.read_exact(&mut certificate)?;
-
-                Ok(certificate)
-            })
-            .collect::<Result<_, Self::Error>>()?;
-
-        let mut padding = vec![0u8; (8 + 4 * certificate_count) as usize]; // MSDN: A byte array of the length 8 + 4*NumCertBlobs
-        stream.read_exact(&mut padding)?;
-
-        Ok(Self { certificate_array })
-    }
-
-    fn to_buffer(&self, mut stream: impl io::Write) -> Result<(), Self::Error> {
-        stream.write_u32::<LittleEndian>(self.certificate_array.len() as u32)?;
+        dst.write_u32(cast_length!("certArrayLen", self.certificate_array.len())?);
 
         for certificate in &self.certificate_array {
-            stream.write_u32::<LittleEndian>(certificate.len() as u32)?;
-            stream.write_all(certificate)?;
+            dst.write_u32(cast_length!("certLen", certificate.len())?);
+            dst.write_slice(certificate);
         }
 
         let padding_len = 8 + 4 * self.certificate_array.len(); // MSDN: A byte array of the length 8 + 4*NumCertBlobs
-        let padding = vec![0u8; padding_len];
-        stream.write_all(padding.as_slice())?;
+        write_padding!(dst, padding_len);
 
         Ok(())
     }
 
-    fn buffer_length(&self) -> usize {
+    fn name(&self) -> &'static str {
+        Self::NAME
+    }
+
+    fn size(&self) -> usize {
         let certificates_length: usize = self
             .certificate_array
             .iter()
@@ -86,6 +70,34 @@ impl PduParsing for X509CertificateChain {
         X509_CERT_COUNT + certificates_length + padding
     }
 }
+
+impl<'de> PduDecode<'de> for X509CertificateChain {
+    fn decode(src: &mut ReadCursor<'de>) -> PduResult<Self> {
+        let certificate_count = cast_length!("certCount", src.read_u32())?;
+        if !(MIN_CERTIFICATE_AMOUNT..MAX_CERTIFICATE_AMOUNT).contains(&certificate_count) {
+            return Err(invalid_message_err!("certCount", "invalid x509 certificate amount"));
+        }
+
+        let certificate_array: Vec<_> = (0..certificate_count)
+            .map(|_| {
+                let certificate_len = cast_length!("certLen", src.read_u32())?;
+                if certificate_len > MAX_CERTIFICATE_LEN {
+                    return Err(invalid_message_err!("certLen", "invalid x509 certificate length"));
+                }
+
+                let certificate = src.read_slice(certificate_len).into();
+
+                Ok(certificate)
+            })
+            .collect::<Result<_, _>>()?;
+
+        read_padding!(src, 8 + 4 * certificate_count); // MSDN: A byte array of the length 8 + 4*NumCertBlobs
+
+        Ok(Self { certificate_array })
+    }
+}
+
+impl_pdu_parsing_max!(X509CertificateChain);
 
 /// [2.2.1.4.3.1.1] Server Proprietary Certificate (PROPRIETARYSERVERCERTIFICATE)
 ///
