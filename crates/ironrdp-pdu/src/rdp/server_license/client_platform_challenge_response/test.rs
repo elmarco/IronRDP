@@ -5,6 +5,7 @@ use crate::rdp::server_license::{
     BasicSecurityHeader, BasicSecurityHeaderFlags, LicenseHeader, PreambleFlags, PreambleType, PreambleVersion,
     BASIC_SECURITY_HEADER_SIZE, PREAMBLE_SIZE,
 };
+use crate::{decode, encode_vec};
 
 const PLATFORM_CHALLENGE_RESPONSE_DATA_BUFFER: [u8; 18] = [
     0x00, 0x01, // version
@@ -80,14 +81,13 @@ lazy_static! {
 fn from_buffer_correctly_parses_platform_challenge_response_data() {
     assert_eq!(
         *RESPONSE,
-        PlatformChallengeResponseData::from_buffer(PLATFORM_CHALLENGE_RESPONSE_DATA_BUFFER.as_ref()).unwrap()
+        decode(PLATFORM_CHALLENGE_RESPONSE_DATA_BUFFER.as_ref()).unwrap()
     );
 }
 
 #[test]
 fn to_buffer_correctly_serializes_platform_challenge_response_data() {
-    let mut serialized_response = Vec::new();
-    RESPONSE.to_buffer(&mut serialized_response).unwrap();
+    let serialized_response = encode_vec(&*RESPONSE).unwrap();
 
     assert_eq!(
         PLATFORM_CHALLENGE_RESPONSE_DATA_BUFFER.as_ref(),
@@ -97,7 +97,7 @@ fn to_buffer_correctly_serializes_platform_challenge_response_data() {
 
 #[test]
 fn buffer_length_is_correct_for_platform_challenge_response_data() {
-    assert_eq!(PLATFORM_CHALLENGE_RESPONSE_DATA_BUFFER.len(), RESPONSE.buffer_length());
+    assert_eq!(PLATFORM_CHALLENGE_RESPONSE_DATA_BUFFER.len(), RESPONSE.size());
 }
 
 #[test]
@@ -154,7 +154,7 @@ fn to_buffer_correctly_serializes_client_platform_challenge_response() {
 fn buffer_length_is_correct_for_client_platform_challenge_response() {
     assert_eq!(
         CLIENT_PLATFORM_CHALLENGE_RESPONSE_BUFFER.len(),
-        CLIENT_PLATFORM_CHALLENGE_RESPONSE.buffer_length()
+        CLIENT_PLATFORM_CHALLENGE_RESPONSE.size()
     );
 }
 

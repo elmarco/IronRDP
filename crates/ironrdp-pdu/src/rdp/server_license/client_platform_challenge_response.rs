@@ -188,24 +188,52 @@ pub(crate) struct PlatformChallengeResponseData {
     challenge: Vec<u8>,
 }
 
-impl PduParsing for PlatformChallengeResponseData {
-    type Error = ServerLicenseError;
+impl PlatformChallengeResponseData {
+    const NAME: &'static str = "PlatformChallengeResponseData";
 
-    fn from_buffer(mut stream: impl io::Read) -> Result<Self, Self::Error> {
-        let version = stream.read_u16::<LittleEndian>()?;
+    const FIXED_PART_SIZE: usize = RESPONSE_DATA_STATIC_FIELDS_SIZE;
+}
+
+impl PduEncode for PlatformChallengeResponseData {
+    fn encode(&self, dst: &mut WriteCursor<'_>) -> PduResult<()> {
+        ensure_size!(in: dst, size: self.size());
+
+        dst.write_u16(RESPONSE_DATA_VERSION);
+        dst.write_u16(self.client_type.to_u16().unwrap());
+        dst.write_u16(self.license_detail_level.to_u16().unwrap());
+        dst.write_u16(cast_length!("len", self.challenge.len())?);
+        dst.write_slice(&self.challenge);
+
+        Ok(())
+    }
+
+    fn name(&self) -> &'static str {
+        Self::NAME
+    }
+
+    fn size(&self) -> usize {
+        Self::FIXED_PART_SIZE + self.challenge.len()
+    }
+}
+
+impl<'de> PduDecode<'de> for PlatformChallengeResponseData {
+    fn decode(src: &mut ReadCursor<'de>) -> PduResult<Self> {
+        ensure_fixed_part_size!(in: src);
+
+        let version = src.read_u16();
         if version != RESPONSE_DATA_VERSION {
-            return Err(ServerLicenseError::InvalidChallengeResponseDataVersion);
+            return Err(invalid_message_err!("version", "invalid challenge response version"));
         }
 
-        let client_type = ClientType::from_u16(stream.read_u16::<LittleEndian>()?)
-            .ok_or(ServerLicenseError::InvalidChallengeResponseDataClientType)?;
+        let client_type = ClientType::from_u16(src.read_u16())
+            .ok_or_else(|| invalid_message_err!("clientType", "invalid client type"))?;
 
-        let license_detail_level = LicenseDetailLevel::from_u16(stream.read_u16::<LittleEndian>()?)
-            .ok_or(ServerLicenseError::InvalidChallengeResponseDataLicenseDetail)?;
+        let license_detail_level = LicenseDetailLevel::from_u16(src.read_u16())
+            .ok_or_else(|| invalid_message_err!("licenseDetailLevel", "invalid license detail level"))?;
 
-        let challenge_len = stream.read_u16::<LittleEndian>()?;
-        let mut challenge = vec![0u8; challenge_len as usize];
-        stream.read_exact(&mut challenge)?;
+        let challenge_len: usize = cast_length!("len", src.read_u16())?;
+        ensure_size!(in: src, size: challenge_len);
+        let challenge = src.read_slice(challenge_len).into();
 
         Ok(Self {
             client_type,
@@ -213,21 +241,9 @@ impl PduParsing for PlatformChallengeResponseData {
             challenge,
         })
     }
-
-    fn to_buffer(&self, mut stream: impl Write) -> Result<(), Self::Error> {
-        stream.write_u16::<LittleEndian>(RESPONSE_DATA_VERSION)?;
-        stream.write_u16::<LittleEndian>(self.client_type.to_u16().unwrap())?;
-        stream.write_u16::<LittleEndian>(self.license_detail_level.to_u16().unwrap())?;
-        stream.write_u16::<LittleEndian>(self.challenge.len() as u16)?;
-        stream.write_all(&self.challenge)?;
-
-        Ok(())
-    }
-
-    fn buffer_length(&self) -> usize {
-        RESPONSE_DATA_STATIC_FIELDS_SIZE + self.challenge.len()
-    }
 }
+
+impl_pdu_parsing_max!(PlatformChallengeResponseData);
 
 #[derive(Debug, PartialEq, Eq)]
 pub(crate) struct ClientHardwareIdentification {
