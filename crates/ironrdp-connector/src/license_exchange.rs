@@ -188,7 +188,7 @@ impl Sequence for LicenseExchangeSequence {
 
                         debug!(message = ?challenge_response, "Send");
 
-                        let written = legacy::encode_send_data_request(
+                        let written = encode_send_data_request(
                             send_data_indication_ctx.initiator_id,
                             send_data_indication_ctx.channel_id,
                             &challenge_response,

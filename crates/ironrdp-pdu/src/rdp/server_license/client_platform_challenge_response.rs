@@ -15,7 +15,8 @@ use super::{
     BLOB_TYPE_SIZE, MAC_SIZE, PLATFORM_ID, PREAMBLE_SIZE,
 };
 use crate::crypto::rc4::Rc4;
-use crate::PduParsing;
+use crate::cursor::{ReadCursor, WriteCursor};
+use crate::{PduDecode, PduEncode, PduParsing, PduResult};
 
 const RESPONSE_DATA_VERSION: u16 = 0x100;
 const RESPONSE_DATA_STATIC_FIELDS_SIZE: usize = 8;
@@ -34,6 +35,8 @@ pub struct ClientPlatformChallengeResponse {
 }
 
 impl ClientPlatformChallengeResponse {
+    const NAME: &'static str = "ClientPlatformChallengeResponse";
+
     pub fn from_server_platform_challenge(
         platform_challenge: &ServerPlatformChallenge,
         hostname: &str,
@@ -98,35 +101,59 @@ impl ClientPlatformChallengeResponse {
     }
 }
 
-impl PduParsing for ClientPlatformChallengeResponse {
-    type Error = ServerLicenseError;
+impl PduEncode for ClientPlatformChallengeResponse {
+    fn encode(&self, dst: &mut WriteCursor<'_>) -> PduResult<()> {
+        ensure_size!(in: dst, size: self.size());
 
-    fn from_buffer(mut stream: impl io::Read) -> Result<Self, Self::Error> {
-        let license_header = LicenseHeader::from_buffer(&mut stream)?;
+        self.license_header.encode(dst)?;
+
+        BlobHeader::new(BlobType::EncryptedData, self.encrypted_challenge_response_data.len()).encode(dst)?;
+        dst.write_slice(&self.encrypted_challenge_response_data);
+
+        BlobHeader::new(BlobType::EncryptedData, self.encrypted_hwid.len()).encode(dst)?;
+        dst.write_slice(&self.encrypted_hwid);
+
+        dst.write_slice(&self.mac_data);
+
+        Ok(())
+    }
+
+    fn name(&self) -> &'static str {
+        Self::NAME
+    }
+
+    fn size(&self) -> usize {
+        self.license_header.buffer_length()
+        + (BLOB_TYPE_SIZE + BLOB_LENGTH_SIZE) * 2 // 2 blobs in this structure
+        + MAC_SIZE + self.encrypted_challenge_response_data.len() + self.encrypted_hwid.len()
+    }
+}
+
+impl<'de> PduDecode<'de> for ClientPlatformChallengeResponse {
+    fn decode(src: &mut ReadCursor<'de>) -> PduResult<Self> {
+        let license_header = LicenseHeader::decode(src)?;
         if license_header.preamble_message_type != PreambleType::PlatformChallengeResponse {
-            return Err(ServerLicenseError::InvalidPreamble(format!(
-                "Got {:?} but expected {:?}",
-                license_header.preamble_message_type,
-                PreambleType::PlatformChallengeResponse
-            )));
+            return Err(invalid_message_err!(
+                "preambleMessageType",
+                "unexpected preamble message type"
+            ));
         }
 
-        let encrypted_challenge_blob = BlobHeader::from_buffer(&mut stream)?;
+        let encrypted_challenge_blob = BlobHeader::decode(src)?;
         if encrypted_challenge_blob.blob_type != BlobType::EncryptedData {
-            return Err(ServerLicenseError::InvalidBlobType);
+            return Err(invalid_message_err!("blobType", "unexpected blob type"));
         }
-        let mut encrypted_challenge_response_data = vec![0u8; encrypted_challenge_blob.length];
-        stream.read_exact(&mut encrypted_challenge_response_data)?;
+        ensure_size!(in: src, size: encrypted_challenge_blob.length);
+        let encrypted_challenge_response_data = src.read_slice(encrypted_challenge_blob.length).into();
 
-        let encrypted_hwid_blob = BlobHeader::from_buffer(&mut stream)?;
+        let encrypted_hwid_blob = BlobHeader::decode(src)?;
         if encrypted_hwid_blob.blob_type != BlobType::EncryptedData {
-            return Err(ServerLicenseError::InvalidBlobType);
+            return Err(invalid_message_err!("blobType", "unexpected blob type"));
         }
-        let mut encrypted_hwid = vec![0u8; encrypted_hwid_blob.length];
-        stream.read_exact(&mut encrypted_hwid)?;
+        ensure_size!(in: src, size: encrypted_hwid_blob.length);
+        let encrypted_hwid = src.read_slice(encrypted_hwid_blob.length).into();
 
-        let mut mac_data = vec![0u8; MAC_SIZE];
-        stream.read_exact(&mut mac_data)?;
+        let mac_data = src.read_slice(MAC_SIZE).into();
 
         Ok(Self {
             license_header,
@@ -135,28 +162,9 @@ impl PduParsing for ClientPlatformChallengeResponse {
             mac_data,
         })
     }
-
-    fn to_buffer(&self, mut stream: impl Write) -> Result<(), Self::Error> {
-        self.license_header.to_buffer(&mut stream)?;
-
-        BlobHeader::new(BlobType::EncryptedData, self.encrypted_challenge_response_data.len())
-            .to_buffer(&mut stream)?;
-        stream.write_all(&self.encrypted_challenge_response_data)?;
-
-        BlobHeader::new(BlobType::EncryptedData, self.encrypted_hwid.len()).to_buffer(&mut stream)?;
-        stream.write_all(&self.encrypted_hwid)?;
-
-        stream.write_all(&self.mac_data)?;
-
-        Ok(())
-    }
-
-    fn buffer_length(&self) -> usize {
-        self.license_header.buffer_length()
-        + (BLOB_TYPE_SIZE + BLOB_LENGTH_SIZE) * 2 // 2 blobs in this structure
-        + MAC_SIZE + self.encrypted_challenge_response_data.len() + self.encrypted_hwid.len()
-    }
 }
+
+impl_pdu_parsing_max!(ClientPlatformChallengeResponse);
 
 #[derive(Debug, PartialEq, FromPrimitive, ToPrimitive)]
 enum ClientType {
