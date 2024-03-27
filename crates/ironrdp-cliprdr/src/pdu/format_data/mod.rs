@@ -166,6 +166,10 @@ impl<'a> FormatDataResponse<'a> {
     pub fn into_owned(self) -> OwnedFormatDataResponse {
         self.into_owned_pdu()
     }
+
+    pub fn into_vec(self) -> Vec<u8> {
+        self.data.into_owned()
+    }
 }
 
 impl PduEncode for FormatDataResponse<'_> {
