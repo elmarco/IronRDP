@@ -14,6 +14,7 @@ use ironrdp_pdu::{self, decode, mcs, nego, rdp, Action, PduResult};
 use ironrdp_svc::{server_encode_svc_messages, StaticChannelSet};
 use ironrdp_tokio::{Framed, FramedRead, FramedWrite, TokioFramed};
 use tokio::net::{TcpListener, TcpStream};
+use tokio::sync::mpsc;
 use tokio_rustls::TlsAcceptor;
 
 use crate::display::{DisplayUpdate, RdpServerDisplay};
@@ -179,6 +180,16 @@ pub struct RdpServer {
     cliprdr_factory: Option<Box<dyn CliprdrBackendFactory + Send>>,
 }
 
+#[derive(Debug)]
+pub enum ServerEvent {
+}
+
+impl ServerEvent {
+    pub fn create_channel() -> (mpsc::UnboundedSender<Self>, mpsc::UnboundedReceiver<Self>) {
+        mpsc::unbounded_channel()
+    }
+}
+
 impl RdpServer {
     pub fn new(
         opts: RdpServerOptions,
@@ -206,6 +217,7 @@ impl RdpServer {
         let capabilities = capabilities::capabilities(&self.opts, size);
         let mut acceptor = Acceptor::new(self.opts.security.flag(), size, capabilities);
 
+        let (ev_sender, ev_receiver) = ServerEvent::create_channel();
         if let Some(cliprdr_factory) = self.cliprdr_factory.as_deref() {
             let backend = cliprdr_factory.build_cliprdr_backend();
 
@@ -229,14 +241,14 @@ impl RdpServer {
                 });
 
                 match ironrdp_acceptor::accept_finalize(framed, &mut acceptor).await {
-                    Ok((framed, result)) => self.client_loop(framed, result).await?,
+                    Ok((framed, result)) => self.client_loop(framed, result, ev_receiver).await?,
                     Err(error) => error!(?error, "Accept finalize error"),
                 };
             }
 
             Ok(BeginResult::Continue(framed)) => {
                 match ironrdp_acceptor::accept_finalize(framed, &mut acceptor).await {
-                    Ok((framed, result)) => self.client_loop(framed, result).await?,
+                    Ok((framed, result)) => self.client_loop(framed, result, ev_receiver).await?,
                     Err(error) => error!(?error, "Accept finalize error"),
                 };
             }
@@ -263,7 +275,12 @@ impl RdpServer {
         Ok(())
     }
 
-    async fn client_loop<S>(&mut self, mut framed: Framed<S>, result: AcceptorResult) -> Result<()>
+    async fn client_loop<S>(
+        &mut self,
+        mut framed: Framed<S>,
+        result: AcceptorResult,
+        mut ev_receiver: mpsc::UnboundedReceiver<ServerEvent>,
+    ) -> Result<()>
     where
         S: FramedWrite + FramedRead,
     {
@@ -394,6 +411,11 @@ impl RdpServer {
                             error!(?error, "Write display update error");
                             break;
                         };
+                    }
+                }
+
+                Some(event) = ev_receiver.recv() => {
+                    match event {
                     }
                 }
             }
