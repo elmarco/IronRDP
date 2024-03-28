@@ -1,7 +1,6 @@
 use std::net::SocketAddr;
 
 use anyhow::Result;
-use ironrdp_cliprdr::backend::CliprdrBackendFactory;
 use tokio_rustls::TlsAcceptor;
 
 use crate::{DisplayUpdate, RdpServerDisplayUpdates};
@@ -28,7 +27,7 @@ pub struct BuilderDone {
     security: RdpServerSecurity,
     handler: Box<dyn RdpServerInputHandler>,
     display: Box<dyn RdpServerDisplay>,
-    cliprdr_factory: Option<Box<dyn CliprdrBackendFactory + Send>>,
+    cliprdr_factory: Option<Box<dyn CliprdrServerFactory + Send>>,
 }
 
 pub struct RdpServerBuilder<State> {
@@ -131,7 +130,7 @@ impl RdpServerBuilder<WantsDisplay> {
 }
 
 impl RdpServerBuilder<BuilderDone> {
-    pub fn with_cliprdr_factory(mut self, cliprdr_factory: Option<Box<dyn CliprdrBackendFactory + Send>>) -> Self {
+    pub fn with_cliprdr_factory(mut self, cliprdr_factory: Option<Box<dyn CliprdrServerFactory + Send>>) -> Self {
         self.state.cliprdr_factory = cliprdr_factory;
         self
     }
