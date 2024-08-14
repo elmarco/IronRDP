@@ -2126,6 +2126,13 @@ dependencies = [
 ]
 
 [[package]]
+name = "ironrdp-core"
+version = "0.1.0"
+dependencies = [
+ "ironrdp-error",
+]
+
+[[package]]
 name = "ironrdp-displaycontrol"
 version = "0.1.0"
 dependencies = [
