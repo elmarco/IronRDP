@@ -19,8 +19,8 @@ use ironrdp_connector::DesktopSize;
 use ironrdp_rdpsnd::pdu::ClientAudioFormatPdu;
 use ironrdp_rdpsnd::server::{RdpsndServerHandler, RdpsndServerMessage};
 use ironrdp_server::{
-    BitmapUpdate, CliprdrServerFactory, DisplayUpdate, KeyboardEvent, MouseEvent, PixelFormat, PixelOrder, RdpServer,
-    RdpServerDisplay, RdpServerDisplayUpdates, RdpServerInputHandler, ServerEvent, ServerEventSender,
+    BitmapUpdate, CliprdrServerFactory, Credentials, DisplayUpdate, KeyboardEvent, MouseEvent, PixelFormat, PixelOrder,
+    RdpServer, RdpServerDisplay, RdpServerDisplayUpdates, RdpServerInputHandler, ServerEvent, ServerEventSender,
     SoundServerFactory,
 };
 use rand::prelude::*;
@@ -52,7 +52,14 @@ async fn main() -> Result<(), anyhow::Error> {
             println!("{HELP}");
             Ok(())
         }
-        Action::Run { host, port, cert, key } => run(host, port, cert, key).await,
+        Action::Run {
+            host,
+            port,
+            cert,
+            key,
+            user,
+            pass,
+        } => run(host, port, cert, key, user, pass).await,
     }
 }
 
@@ -64,6 +71,8 @@ enum Action {
         port: u16,
         cert: Option<String>,
         key: Option<String>,
+        user: Option<String>,
+        pass: Option<String>,
     },
 }
 
@@ -79,7 +88,16 @@ fn parse_args() -> anyhow::Result<Action> {
         let port = args.opt_value_from_str("--port")?.unwrap_or(3389);
         let cert = args.opt_value_from_str("--cert")?;
         let key = args.opt_value_from_str("--key")?;
-        Action::Run { host, port, cert, key }
+        let user = args.opt_value_from_str("--user")?;
+        let pass = args.opt_value_from_str("--pass")?;
+        Action::Run {
+            host,
+            port,
+            cert,
+            key,
+            user,
+            pass,
+        }
     };
 
     Ok(action)
@@ -313,7 +331,14 @@ impl RdpsndServerHandler for SndHandler {
     }
 }
 
-async fn run(host: String, port: u16, cert: Option<String>, key: Option<String>) -> anyhow::Result<()> {
+async fn run(
+    host: String,
+    port: u16,
+    cert: Option<String>,
+    key: Option<String>,
+    user: Option<String>,
+    pass: Option<String>,
+) -> anyhow::Result<()> {
     info!(host, port, cert, key, "run");
     let handler = Handler::new();
 
@@ -342,6 +367,15 @@ async fn run(host: String, port: u16, cert: Option<String>, key: Option<String>)
         .with_cliprdr_factory(Some(cliprdr))
         .with_sound_factory(Some(sound))
         .build();
+
+    server.set_credentials(match (user, pass) {
+        (Some(username), Some(password)) => Some(Credentials {
+            username,
+            password,
+            domain: None,
+        }),
+        _ => None,
+    });
 
     server.run().await
 }
