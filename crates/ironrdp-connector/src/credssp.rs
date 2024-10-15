@@ -208,6 +208,7 @@ impl CredsspSequence {
     pub fn handle_process_result(&mut self, result: ClientState, output: &mut WriteBuf) -> ConnectorResult<Written> {
         let (size, next_state) = match self.state {
             CredsspState::Ongoing => {
+                debug!(rRES = ?result);
                 let (ts_request_from_client, next_state) = match result {
                     ClientState::ReplyNeeded(ts_request) => (ts_request, CredsspState::Ongoing),
                     ClientState::FinalMessage(ts_request) => (

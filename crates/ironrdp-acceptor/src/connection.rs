@@ -27,7 +27,7 @@ const IO_CHANNEL_ID: u16 = 1003;
 const USER_CHANNEL_ID: u16 = 1002;
 
 pub struct Acceptor {
-    state: AcceptorState,
+    pub(crate) state: AcceptorState,
     security: nego::SecurityProtocol,
     io_channel_id: u16,
     user_channel_id: u16,
@@ -35,7 +35,7 @@ pub struct Acceptor {
     server_capabilities: Vec<CapabilitySet>,
     static_channels: StaticChannelSet,
     saved_for_reactivation: AcceptorState,
-    creds: Option<Credentials>,
+    pub(crate) creds: Option<Credentials>,
 }
 
 #[derive(Debug)]
@@ -128,6 +128,23 @@ impl Acceptor {
         }
     }
 
+    pub fn mark_security_upgrade_as_done(&mut self) {
+        assert!(self.reached_security_upgrade().is_some());
+        self.step(&[], &mut WriteBuf::new()).expect("transition to next state");
+        debug_assert!(self.reached_security_upgrade().is_none());
+    }
+
+    pub fn should_perform_credssp(&self) -> bool {
+        matches!(self.state, AcceptorState::Credssp { .. })
+    }
+
+    pub fn mark_credssp_as_done(&mut self) {
+        assert!(self.should_perform_credssp());
+        let res = self.step(&[], &mut WriteBuf::new()).expect("transition to next state");
+        debug_assert!(!self.should_perform_credssp());
+        assert_eq!(res, Written::Nothing);
+    }
+
     pub fn get_result(&mut self) -> Option<AcceptorResult> {
         match mem::take(&mut self.state) {
             AcceptorState::Accepted {
@@ -159,6 +176,9 @@ pub enum AcceptorState {
         requested_protocol: nego::SecurityProtocol,
     },
     SecurityUpgrade {
+        requested_protocol: nego::SecurityProtocol,
+    },
+    Credssp {
         requested_protocol: nego::SecurityProtocol,
     },
     BasicSettingsWaitInitial {
@@ -215,6 +235,7 @@ impl State for AcceptorState {
             Self::InitiationWaitRequest => "InitiationWaitRequest",
             Self::InitiationSendConfirm { .. } => "InitiationSendConfirm",
             Self::SecurityUpgrade { .. } => "SecurityUpgrade",
+            Self::Credssp { .. } => "Credssp",
             Self::BasicSettingsWaitInitial { .. } => "BasicSettingsWaitInitial",
             Self::BasicSettingsSendResponse { .. } => "BasicSettingsSendResponse",
             Self::ChannelConnection { .. } => "ChannelConnection",
@@ -245,6 +266,7 @@ impl Sequence for Acceptor {
             AcceptorState::InitiationWaitRequest => Some(&pdu::X224_HINT),
             AcceptorState::InitiationSendConfirm { .. } => None,
             AcceptorState::SecurityUpgrade { .. } => None,
+            AcceptorState::Credssp { .. } => None,
             AcceptorState::BasicSettingsWaitInitial { .. } => Some(&pdu::X224_HINT),
             AcceptorState::BasicSettingsSendResponse { .. } => None,
             AcceptorState::ChannelConnection { connection, .. } => connection.next_pdu_hint(),
@@ -297,7 +319,18 @@ impl Sequence for Acceptor {
                 )
             }
 
-            AcceptorState::SecurityUpgrade { requested_protocol } => (
+            AcceptorState::SecurityUpgrade { requested_protocol } => {
+                let next_state = if requested_protocol
+                    .intersects(nego::SecurityProtocol::HYBRID | nego::SecurityProtocol::HYBRID_EX)
+                {
+                    AcceptorState::Credssp { requested_protocol }
+                } else {
+                    AcceptorState::BasicSettingsWaitInitial { requested_protocol }
+                };
+                (Written::Nothing, next_state)
+            }
+
+            AcceptorState::Credssp { requested_protocol } => (
                 Written::Nothing,
                 AcceptorState::BasicSettingsWaitInitial { requested_protocol },
             ),
@@ -451,7 +484,7 @@ impl Sequence for Acceptor {
                 debug!(message = ?client_info, "Received");
 
                 let creds = client_info.client_info.credentials;
-                debug!(?creds);
+                debug!(?self.creds);
 
                 if self.creds.as_ref().map_or(true, |srv_creds| srv_creds != &creds) {
                     // FIXME: how authorization should be denied?

@@ -44,6 +44,7 @@ pub struct RdpServerOptions {
 pub enum RdpServerSecurity {
     None,
     Tls(TlsAcceptor),
+    Hybrid(TlsAcceptor),
 }
 
 impl RdpServerSecurity {
@@ -51,6 +52,7 @@ impl RdpServerSecurity {
         match self {
             RdpServerSecurity::None => nego::SecurityProtocol::empty(),
             RdpServerSecurity::Tls(_) => nego::SecurityProtocol::SSL,
+            RdpServerSecurity::Hybrid(_) => nego::SecurityProtocol::HYBRID | nego::SecurityProtocol::HYBRID_EX,
         }
     }
 }
@@ -286,8 +288,11 @@ impl RdpServer {
             BeginResult::ShouldUpgrade(stream) => {
                 let framed = TokioFramed::new(match &self.opts.security {
                     RdpServerSecurity::Tls(acceptor) => acceptor.accept(stream).await?,
+                    RdpServerSecurity::Hybrid(acceptor) => acceptor.accept(stream).await?,
                     RdpServerSecurity::None => unreachable!(),
                 });
+
+                acceptor.mark_security_upgrade_as_done();
 
                 self.accept_finalize(framed, acceptor).await?;
             }
@@ -862,11 +867,19 @@ impl RdpServer {
         S: AsyncRead + AsyncWrite + Sync + Send + Unpin,
     {
         let mut other_pdus = None;
-
         loop {
-            let (new_framed, result) = ironrdp_acceptor::accept_finalize(framed, &mut acceptor, other_pdus.as_mut())
-                .await
-                .context("failed to accept client during finalize")?;
+            let server_name = "ServerName".into(); //self.opts.addr;
+            let server_public_key = vec![]; // self.opts.security
+            let (new_framed, result) = ironrdp_acceptor::accept_finalize(
+                framed,
+                &mut acceptor,
+                server_name,
+                server_public_key,
+                None,
+                other_pdus.as_mut(),
+            )
+            .await
+            .context("failed to accept client during finalize")?;
 
             let (stream, mut leftover) = new_framed.into_inner();
 

@@ -351,7 +351,7 @@ async fn run(
 
     let server = RdpServer::builder().with_addr(addr);
     let server = if let Some(tls) = tls {
-        server.with_tls(tls)
+        server.with_hybrid(tls)
     } else {
         server.with_no_security()
     };

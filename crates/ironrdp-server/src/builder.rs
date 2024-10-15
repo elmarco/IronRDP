@@ -74,6 +74,15 @@ impl RdpServerBuilder<WantsSecurity> {
             },
         }
     }
+
+    pub fn with_hybrid(self, acceptor: impl Into<TlsAcceptor>) -> RdpServerBuilder<WantsHandler> {
+        RdpServerBuilder {
+            state: WantsHandler {
+                addr: self.state.addr,
+                security: RdpServerSecurity::Hybrid(acceptor.into()),
+            },
+        }
+    }
 }
 
 impl RdpServerBuilder<WantsHandler> {
