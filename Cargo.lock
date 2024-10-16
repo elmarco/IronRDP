@@ -4062,9 +4062,9 @@ dependencies = [
 
 [[package]]
 name = "rustls-native-certs"
-version = "0.7.1"
+version = "0.8.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "a88d6d420651b496bdd98684116959239430022a115c1240e6c3993be0b15fba"
+checksum = "fcaf18a4f2be7326cd874a5fa579fae794320a0f388d365dca7e480e55f83f8a"
 dependencies = [
  "openssl-probe",
  "rustls-pemfile",
@@ -4469,8 +4469,7 @@ dependencies = [
 [[package]]
 name = "sspi"
 version = "0.13.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "1734839082c6d33f8368b40a40d0d5cc1ed10fbde00dc8a404f64e70272ed3f6"
+source = "git+https://github.com/devolutions/sspi-rs#bef5fd24328871dbe9b6bbf3483bc84b8b9641ef"
 dependencies = [
  "async-dnssd",
  "async-recursion",
@@ -4480,7 +4479,6 @@ dependencies = [
  "crypto-mac",
  "futures",
  "hmac",
- "lazy_static",
  "md-5",
  "md4",
  "num-bigint-dig",
@@ -4509,7 +4507,7 @@ dependencies = [
  "url",
  "uuid",
  "windows 0.58.0",
- "windows-sys 0.52.0",
+ "windows-sys 0.59.0",
  "winreg 0.52.0",
  "zeroize",
 ]
