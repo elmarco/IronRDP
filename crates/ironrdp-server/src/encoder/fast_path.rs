@@ -10,10 +10,11 @@ const MAX_FASTPATH_UPDATE_SIZE: usize = 16_374;
 
 const FASTPATH_HEADER_SIZE: usize = 6;
 
+#[cfg_attr(feature = "__bench", visibility::make(pub))]
 pub(crate) struct UpdateFragmenter {
     code: UpdateCode,
     index: usize,
-    data: Vec<u8>,
+    pub data: Vec<u8>,
     position: usize,
 }
 
