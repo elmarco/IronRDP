@@ -4,6 +4,7 @@ pub(crate) mod rfx;
 use core::{cmp, fmt};
 
 use anyhow::{Context, Result};
+use ironrdp_acceptor::DesktopSize;
 use ironrdp_core::{Encode, WriteCursor};
 use ironrdp_pdu::fast_path::{EncryptionFlags, FastPathHeader, FastPathUpdatePdu, Fragmentation, UpdateCode};
 use ironrdp_pdu::geometry::ExclusiveRectangle;
@@ -28,6 +29,8 @@ const MAX_FASTPATH_UPDATE_SIZE: usize = 16_374;
 const FASTPATH_HEADER_SIZE: usize = 6;
 
 pub(crate) struct UpdateEncoder {
+    desktop_size: DesktopSize,
+    framebuffer: Option<BitmapUpdate>,
     pdu_encoder: PduEncoder,
     bitmap_updater: BitmapUpdater,
 }
@@ -41,7 +44,7 @@ impl fmt::Debug for UpdateEncoder {
 }
 
 impl UpdateEncoder {
-    pub(crate) fn new(surface_flags: CmdFlags, remotefx: Option<(EntropyBits, u8)>) -> Self {
+    pub(crate) fn new(desktop_size: DesktopSize, surface_flags: CmdFlags, remotefx: Option<(EntropyBits, u8)>) -> Self {
         let pdu_encoder = PduEncoder::new();
         let bitmap_updater = if !surface_flags.contains(CmdFlags::SET_SURFACE_BITS) {
             BitmapUpdater::Bitmap(BitmapHandler::new())
@@ -53,9 +56,15 @@ impl UpdateEncoder {
         };
 
         Self {
+            desktop_size,
+            framebuffer: None,
             pdu_encoder,
             bitmap_updater,
         }
+    }
+
+    pub(crate) fn set_desktop_size(&mut self, size: DesktopSize) {
+        self.desktop_size = size;
     }
 
     pub(crate) fn rgba_pointer(&mut self, ptr: RGBAPointer) -> Result<UpdateFragmenter<'_>> {
@@ -114,7 +123,15 @@ impl UpdateEncoder {
     }
 
     pub(crate) fn bitmap(&mut self, bitmap: BitmapUpdate) -> Result<UpdateFragmenter<'_>> {
-        self.bitmap_updater.handle(&bitmap, &mut self.pdu_encoder)
+        let res = self.bitmap_updater.handle(&bitmap, &mut self.pdu_encoder);
+        if bitmap.top == 0
+            && bitmap.left == 0
+            && bitmap.width.get() == self.desktop_size.width
+            && bitmap.height.get() == self.desktop_size.height
+        {
+            self.framebuffer = Some(bitmap);
+        }
+        res
     }
 
     pub(crate) fn fragmenter_from_owned(&self, res: UpdateFragmenterOwned) -> UpdateFragmenter<'_> {
