@@ -92,6 +92,26 @@ impl BitmapUpdate {
             stride,
         }
     }
+
+    #[must_use]
+    pub fn sub(&self, x: u16, y: u16, width: NonZeroU16, height: NonZeroU16) -> Option<Self> {
+        if x + width.get() > self.width.get() || y + height.get() > self.height.get() {
+            None
+        } else {
+            let bpp = usize::from(self.format.bytes_per_pixel());
+            let start = usize::from(y) * self.stride + usize::from(x) * bpp;
+            let end = start + usize::from(height.get() - 1) * self.stride + usize::from(width.get()) * bpp;
+            Some(Self {
+                x: self.x + x,
+                y: self.y + y,
+                width,
+                height,
+                format: self.format,
+                data: self.data.slice(start..end),
+                stride: self.stride,
+            })
+        }
+    }
 }
 
 impl core::fmt::Debug for BitmapUpdate {
