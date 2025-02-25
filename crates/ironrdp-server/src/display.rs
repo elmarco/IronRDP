@@ -63,8 +63,8 @@ pub struct ColorPointer {
 ///
 #[derive(Clone)]
 pub struct BitmapUpdate {
-    pub top: u16,
-    pub left: u16,
+    pub x: u16,
+    pub y: u16,
     pub width: NonZeroU16,
     pub height: NonZeroU16,
     pub format: PixelFormat,
@@ -74,8 +74,8 @@ pub struct BitmapUpdate {
 
 impl BitmapUpdate {
     pub fn new(
-        top: u16,
-        left: u16,
+        x: u16,
+        y: u16,
         width: NonZeroU16,
         height: NonZeroU16,
         format: PixelFormat,
@@ -83,8 +83,8 @@ impl BitmapUpdate {
         stride: usize,
     ) -> Self {
         Self {
-            top,
-            left,
+            x,
+            y,
             width,
             height,
             format,
@@ -97,8 +97,8 @@ impl BitmapUpdate {
 impl core::fmt::Debug for BitmapUpdate {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         f.debug_struct("BitmapUpdate")
-            .field("top", &self.top)
-            .field("left", &self.left)
+            .field("x", &self.x)
+            .field("y", &self.y)
             .field("width", &self.width)
             .field("height", &self.height)
             .field("format", &self.format)
