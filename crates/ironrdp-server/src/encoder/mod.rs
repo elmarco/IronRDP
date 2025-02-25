@@ -12,7 +12,7 @@ use ironrdp_pdu::surface_commands::{ExtendedBitmapDataPdu, SurfaceBitsPdu, Surfa
 use self::bitmap::BitmapEncoder;
 use self::rfx::RfxEncoder;
 use super::BitmapUpdate;
-use crate::{ColorPointer, RGBAPointer};
+use crate::{time_warn, ColorPointer, DisplayUpdate, RGBAPointer};
 
 mod bitmap;
 mod fast_path;
@@ -58,12 +58,19 @@ impl UpdateEncoder {
         }
     }
 
+    pub(crate) fn update(&mut self, update: DisplayUpdate) -> EncoderIter<'_> {
+        EncoderIter {
+            encoder: self,
+            update: Some(update),
+        }
+    }
+
     pub(crate) fn set_desktop_size(&mut self, size: DesktopSize) {
         self.desktop_size = size;
     }
 
     #[allow(clippy::unused_self)]
-    pub(crate) fn rgba_pointer(&mut self, ptr: RGBAPointer) -> Result<UpdateFragmenter> {
+    fn rgba_pointer(&self, ptr: RGBAPointer) -> Result<UpdateFragmenter> {
         let xor_mask = ptr.data;
 
         let hot_spot = Point16 {
@@ -86,7 +93,7 @@ impl UpdateEncoder {
     }
 
     #[allow(clippy::unused_self)]
-    pub(crate) fn color_pointer(&mut self, ptr: ColorPointer) -> Result<UpdateFragmenter> {
+    fn color_pointer(&self, ptr: ColorPointer) -> Result<UpdateFragmenter> {
         let hot_spot = Point16 {
             x: ptr.hot_x,
             y: ptr.hot_y,
@@ -103,22 +110,28 @@ impl UpdateEncoder {
     }
 
     #[allow(clippy::unused_self)]
-    pub(crate) fn default_pointer(&mut self) -> Result<UpdateFragmenter> {
+    fn default_pointer(&self) -> Result<UpdateFragmenter> {
         Ok(UpdateFragmenter::new(UpdateCode::DefaultPointer, vec![]))
     }
 
     #[allow(clippy::unused_self)]
-    pub(crate) fn hide_pointer(&mut self) -> Result<UpdateFragmenter> {
+    fn hide_pointer(&self) -> Result<UpdateFragmenter> {
         Ok(UpdateFragmenter::new(UpdateCode::HiddenPointer, vec![]))
     }
 
     #[allow(clippy::unused_self)]
-    pub(crate) fn pointer_position(&mut self, pos: PointerPositionAttribute) -> Result<UpdateFragmenter> {
+    fn pointer_position(&self, pos: PointerPositionAttribute) -> Result<UpdateFragmenter> {
         Ok(UpdateFragmenter::new(UpdateCode::PositionPointer, encode_vec(&pos)?))
     }
 
-    pub(crate) fn bitmap(&mut self, bitmap: BitmapUpdate) -> Result<UpdateFragmenter> {
-        let res = self.bitmap_updater.handle(&bitmap);
+    async fn bitmap(&mut self, bitmap: BitmapUpdate) -> Result<UpdateFragmenter> {
+        // Clone to satisfy spawn_blocking 'static requirement
+        // this should be cheap, even if using bitmap, since vec![] will be empty
+        let mut updater = self.bitmap_updater.clone();
+        let (res, bitmap) =
+            tokio::task::spawn_blocking(move || time_warn!("Encoding bitmap", 10, (updater.handle(&bitmap), bitmap)))
+                .await
+                .unwrap();
         if bitmap.x == 0
             && bitmap.y == 0
             && bitmap.width.get() == self.desktop_size.width
@@ -130,7 +143,31 @@ impl UpdateEncoder {
     }
 }
 
-#[derive(Debug)]
+pub(crate) struct EncoderIter<'a> {
+    encoder: &'a mut UpdateEncoder,
+    update: Option<DisplayUpdate>,
+}
+
+impl EncoderIter<'_> {
+    pub(crate) async fn next(&mut self) -> Option<Result<UpdateFragmenter>> {
+        let update = self.update.take()?;
+        let encoder = &mut self.encoder;
+
+        let res = match update {
+            DisplayUpdate::Bitmap(bitmap) => encoder.bitmap(bitmap).await,
+            DisplayUpdate::PointerPosition(pos) => encoder.pointer_position(pos),
+            DisplayUpdate::RGBAPointer(ptr) => encoder.rgba_pointer(ptr),
+            DisplayUpdate::ColorPointer(ptr) => encoder.color_pointer(ptr),
+            DisplayUpdate::HidePointer => encoder.hide_pointer(),
+            DisplayUpdate::DefaultPointer => encoder.default_pointer(),
+            DisplayUpdate::Resize(_) => return None,
+        };
+
+        Some(res)
+    }
+}
+
+#[derive(Debug, Clone)]
 enum BitmapUpdater {
     None(NoneHandler),
     Bitmap(BitmapHandler),
@@ -151,7 +188,7 @@ trait BitmapUpdateHandler {
     fn handle(&mut self, bitmap: &BitmapUpdate) -> Result<UpdateFragmenter>;
 }
 
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 struct NoneHandler;
 
 impl BitmapUpdateHandler for NoneHandler {
@@ -165,6 +202,7 @@ impl BitmapUpdateHandler for NoneHandler {
     }
 }
 
+#[derive(Clone)]
 struct BitmapHandler {
     bitmap: BitmapEncoder,
 }
@@ -205,7 +243,7 @@ impl BitmapUpdateHandler for BitmapHandler {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 struct RemoteFxHandler {
     remotefx: RfxEncoder,
     codec_id: u8,
