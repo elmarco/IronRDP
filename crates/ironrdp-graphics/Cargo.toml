@@ -31,6 +31,7 @@ yuvutils-rs = { version = "0.8", features = ["rdp"] }
 [dev-dependencies]
 bmp = "0.5"
 expect-test.workspace = true
+bytemuck.workspace = true
 
 [lints]
 workspace = true
