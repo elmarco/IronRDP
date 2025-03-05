@@ -40,6 +40,7 @@ pub struct RdpServerOptions {
     pub security: RdpServerSecurity,
     pub with_remote_fx: bool,
     pub with_qoi: bool,
+    pub with_qoiz: bool,
 }
 
 #[derive(Clone)]
@@ -666,6 +667,8 @@ impl RdpServer {
         let mut rfxcodec = None;
         #[cfg(feature = "qoi")]
         let mut qoicodec = None;
+        #[cfg(feature = "qoiz")]
+        let mut qoizcodec = None;
         let mut surface_flags = CmdFlags::empty();
         for c in result.capabilities {
             match c {
@@ -731,6 +734,10 @@ impl RdpServer {
                             rdp::capability_sets::CodecProperty::QOI => {
                                 qoicodec = Some(codec.id);
                             }
+                            #[cfg(feature = "qoiz")]
+                            rdp::capability_sets::CodecProperty::QOIZ => {
+                                qoizcodec = Some(codec.id);
+                            }
                             _ => (),
                         }
                     }
@@ -746,6 +753,8 @@ impl RdpServer {
             rfxcodec,
             #[cfg(feature = "qoi")]
             qoicodec,
+            #[cfg(feature = "qoiz")]
+            qoizcodec,
         );
 
         let state = self

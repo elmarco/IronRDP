@@ -296,6 +296,11 @@ fn create_client_confirm_active(
         id: 0x0A, // QOI
         property: CodecProperty::QOI,
     });
+    #[cfg(feature = "qoiz")]
+    bitmap_codecs.push(Codec {
+        id: 0x0B, // QOIZ
+        property: CodecProperty::QOIZ,
+    });
 
     server_capability_sets.extend_from_slice(&[
         CapabilitySet::General(General {

@@ -18,6 +18,7 @@ test = false
 [features]
 default = []
 qoi = ["dep:qoi"]
+qoiz = ["dep:zstd-safe", "qoi"]
 
 [dependencies]
 ironrdp-connector.workspace = true # TODO: at some point, this dependency could be removed (good for compilation speed)
@@ -30,6 +31,7 @@ ironrdp-displaycontrol.workspace = true
 tracing.workspace = true
 ironrdp-core.workspace = true
 qoi = { workspace = true, optional = true }
+zstd-safe = { workspace = true, optional = true, features = ["std"] }
 
 [lints]
 workspace = true

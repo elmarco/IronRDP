@@ -40,6 +40,9 @@ const GUID_IGNORE: Guid = Guid(0x9c43_51a6, 0x3535, 0x42ae, 0x91, 0x0c, 0xcd, 0x
 #[rustfmt::skip]
 #[cfg(feature="qoi")]
 const GUID_QOI: Guid = Guid(0x4dae_9af8, 0xb399, 0x4df6, 0xb4, 0x3a, 0x66, 0x2f, 0xd9, 0xc0, 0xf5, 0xd6);
+#[rustfmt::skip]
+#[cfg(feature="qoiz")]
+const GUID_QOIZ: Guid = Guid(0x229c_c6dc, 0xa860, 0x4b52, 0xb4, 0xd8, 0x05, 0x3a, 0x22, 0xb3, 0x89, 0x2b);
 
 #[derive(Debug, PartialEq, Eq)]
 pub struct Guid(u32, u16, u16, u8, u8, u8, u8, u8, u8, u8, u8);
@@ -169,6 +172,8 @@ impl Encode for Codec {
             CodecProperty::Ignore => GUID_IGNORE,
             #[cfg(feature = "qoi")]
             CodecProperty::QOI => GUID_QOI,
+            #[cfg(feature = "qoiz")]
+            CodecProperty::QOIZ => GUID_QOIZ,
             _ => return Err(other_err!("invalid codec")),
         };
         guid.encode(dst)?;
@@ -208,6 +213,8 @@ impl Encode for Codec {
             }
             #[cfg(feature = "qoi")]
             CodecProperty::QOI => dst.write_u16(0),
+            #[cfg(feature = "qoiz")]
+            CodecProperty::QOIZ => dst.write_u16(0),
             CodecProperty::Ignore => dst.write_u16(0),
             CodecProperty::None => dst.write_u16(0),
         };
@@ -233,6 +240,8 @@ impl Encode for Codec {
                 },
                 #[cfg(feature = "qoi")]
                 CodecProperty::QOI => 0,
+                #[cfg(feature = "qoiz")]
+                CodecProperty::QOIZ => 0,
                 CodecProperty::Ignore => 0,
                 CodecProperty::None => 0,
             }
@@ -269,6 +278,8 @@ impl<'de> Decode<'de> for Codec {
                 }
                 #[cfg(feature = "qoi")]
                 GUID_QOI => CodecProperty::QOI,
+                #[cfg(feature = "qoiz")]
+                GUID_QOIZ => CodecProperty::QOIZ,
                 GUID_IGNORE => CodecProperty::Ignore,
                 _ => CodecProperty::None,
             }
@@ -282,6 +293,8 @@ impl<'de> Decode<'de> for Codec {
                 }
                 #[cfg(feature = "qoi")]
                 GUID_QOI => CodecProperty::QOI,
+                #[cfg(feature = "qoiz")]
+                GUID_QOIZ => CodecProperty::QOIZ,
                 GUID_IGNORE => CodecProperty::Ignore,
                 _ => CodecProperty::None,
             }
@@ -305,6 +318,8 @@ pub enum CodecProperty {
     Ignore,
     #[cfg(feature = "qoi")]
     QOI,
+    #[cfg(feature = "qoiz")]
+    QOIZ,
     None,
 }
 

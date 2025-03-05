@@ -426,6 +426,10 @@ async fn run(
     {
         server = server.with_qoi(true);
     }
+    #[cfg(feature = "qoiz")]
+    {
+        server = server.with_qoiz(true);
+    }
 
     let mut server = server.build();
 

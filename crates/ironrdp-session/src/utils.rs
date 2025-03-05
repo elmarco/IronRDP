@@ -5,7 +5,9 @@ pub enum CodecId {
     None = 0x0,
     RemoteFx = 0x3,
     #[cfg(feature = "qoi")]
-    QOI = 0xA0,
+    QOI = 0x0A,
+    #[cfg(feature = "qoiz")]
+    QOIZ = 0x0B,
 }
 
 impl CodecId {
@@ -15,6 +17,8 @@ impl CodecId {
             3 => Some(Self::RemoteFx),
             #[cfg(feature = "qoi")]
             0x0A => Some(Self::QOI),
+            #[cfg(feature = "qoiz")]
+            0x0B => Some(Self::QOIZ),
             _ => None,
         }
     }

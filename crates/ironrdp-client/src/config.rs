@@ -265,6 +265,7 @@ impl Config {
                 lossy_compression: true,
                 // only when "qoi" feature is enabled
                 with_qoi: true,
+                with_qoiz: true,
             })
         } else {
             None

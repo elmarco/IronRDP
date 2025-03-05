@@ -48,6 +48,7 @@ pub struct BitmapConfig {
     pub color_depth: u32,
     // no #[cfg(feature = "qoi")], as this breaks semver
     pub with_qoi: bool,
+    pub with_qoiz: bool,
 }
 
 #[derive(Debug, Clone)]

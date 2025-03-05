@@ -32,6 +32,8 @@ pub struct BuilderDone {
     sound_factory: Option<Box<dyn SoundServerFactory>>,
     #[cfg(feature = "qoi")]
     with_qoi: bool,
+    #[cfg(feature = "qoiz")]
+    with_qoiz: bool,
 }
 
 pub struct RdpServerBuilder<State> {
@@ -129,6 +131,8 @@ impl RdpServerBuilder<WantsDisplay> {
                 with_remote_fx: true,
                 #[cfg(feature = "qoi")]
                 with_qoi: true,
+                #[cfg(feature = "qoiz")]
+                with_qoiz: true,
             },
         }
     }
@@ -145,6 +149,8 @@ impl RdpServerBuilder<WantsDisplay> {
                 with_remote_fx: true,
                 #[cfg(feature = "qoi")]
                 with_qoi: true,
+                #[cfg(feature = "qoi")]
+                with_qoiz: true,
             },
         }
     }
@@ -172,6 +178,12 @@ impl RdpServerBuilder<BuilderDone> {
         self
     }
 
+    #[cfg(feature = "qoiz")]
+    pub fn with_qoiz(mut self, enabled: bool) -> Self {
+        self.state.with_qoiz = enabled;
+        self
+    }
+
     pub fn build(self) -> RdpServer {
         RdpServer::new(
             RdpServerOptions {
@@ -180,6 +192,8 @@ impl RdpServerBuilder<BuilderDone> {
                 with_remote_fx: self.state.with_remote_fx,
                 #[cfg(feature = "qoi")]
                 with_qoi: self.state.with_qoi,
+                #[cfg(feature = "qoiz")]
+                with_qoiz: self.state.with_qoiz,
             },
             self.state.handler,
             self.state.display,

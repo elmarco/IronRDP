@@ -847,6 +847,7 @@ fn build_config(
             color_depth: 16,
             lossy_compression: true,
             with_qoi: true,
+            with_qoiz: true,
         }),
         #[allow(clippy::arithmetic_side_effects)] // fine unless we end up with an insanely big version
         client_build: semver::Version::parse(env!("CARGO_PKG_VERSION"))

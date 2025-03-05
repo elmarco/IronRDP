@@ -21,6 +21,7 @@ crate-type = ["cdylib", "rlib"]
 default = ["panic_hook", "qoi"]
 panic_hook = ["dep:console_error_panic_hook"]
 qoi = ["ironrdp/qoi"]
+qoiz = ["ironrdp/qoiz"]
 
 [dependencies]
 
