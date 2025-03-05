@@ -62,6 +62,7 @@ bytemuck = "1.21"
 expect-test = "1"
 png = "0.17"
 proptest = "1.4"
+qoi = "0.4"
 rstest = "0.18"
 sspi = "0.15"
 tracing = { version = "0.1", features = ["log"] }

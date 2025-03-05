@@ -46,6 +46,8 @@ pub struct DesktopSize {
 pub struct BitmapConfig {
     pub lossy_compression: bool,
     pub color_depth: u32,
+    // no #[cfg(feature = "qoi")], as this breaks semver
+    pub with_qoi: bool,
 }
 
 #[derive(Debug, Clone)]

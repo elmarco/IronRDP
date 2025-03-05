@@ -420,8 +420,14 @@ async fn run(
         .with_input_handler(handler.clone())
         .with_display_handler(handler.clone())
         .with_cliprdr_factory(Some(cliprdr))
-        .with_sound_factory(Some(sound))
-        .build();
+        .with_sound_factory(Some(sound));
+
+    #[cfg(feature = "qoi")]
+    {
+        server = server.with_qoi(true);
+    }
+
+    let mut server = server.build();
 
     server.set_credentials(Some(Credentials {
         username,
