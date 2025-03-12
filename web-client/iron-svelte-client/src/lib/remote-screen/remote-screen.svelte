@@ -82,7 +82,7 @@
             Unicode keyboard mode
         </label>
     </div>
-    <iron-remote-gui debugwasm="INFO" verbose="true" scale="fit" flexcenter="true" />
+    <iron-remote-gui debugwasm="DEBUG" verbose="true" scale="fit" flexcenter="true" />
 </div>
 
 <style>

@@ -7,17 +7,17 @@
     import { showLogin } from '$lib/login/login-store';
     import type { DesktopSize } from '../../models/desktop-size';
 
-    let username = 'Administrator';
-    let password = 'DevoLabs123!';
+    let username = 'user';
+    let password = 'pass';
     let gatewayAddress = 'ws://localhost:7171/jet/rdp';
-    let hostname = '10.10.0.3:3389';
+    let hostname = '192.168.1.23:3389';
     let domain = '';
     let authtoken =
-        'eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCIsImN0eSI6IkFTU09DSUFUSU9OIn0.eyJkc3RfaHN0IjoiMTkyLjE2OC41Ni4xMDE6MzM4OSIsImV4cCI6MTY5MzQyMzY1NSwiamV0X2FpZCI6IjMwNzZjZGIwLWYxNTctNDJlNy1iOWMzLThhMTdlNDFkYjYwNyIsImpldF9hcCI6InJkcCIsImpldF9jbSI6ImZ3ZCIsImp0aSI6IjAwYjY4OTY2LWJiYjAtNDU0NS05ZDZiLWRjNmFmMjAzNjY5MiIsIm5iZiI6MTY5MzQyMjc1NX0.SYQv4HtWQbdHMHgoCLYejCfO3TtsMAyjjILB6-Nir3mBznKiSad3POeLf02n05JFc5QhCeSGxspAaoNU7-znQFhHr0Tt0MnZJ1YMQt4UoR3PR2fTuUqv8M5TKdm4lKwCIjh73tTD001glTkXHaxuCQBTFCUSzfZhXDIqq5-CQueKtCrgJfYepJLmlvgH-ujGcxfXoGJGmeUy3Fmaijiy0uaC98j9GNCfnAd6JENmSAOkxfroMFhq601PSEizRbPzq2exDakfJ0EkaANz15udBX1a7NP-RyANHWQb8hp0rj6hyuyg1-vfUKYusw5qNUjAGXaWOjHC5bLgnqfE2V8Xnw';
+        'eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCIsImN0eSI6IkFTU09DSUFUSU9OIn0.eyJkc3RfaHN0IjoiMTkyLjE2OC4xLjIzOjMzODkiLCJleHAiOjE3NDE3NzQyNTAsImpldF9haWQiOiJkMDU1YWU3OC1kZmM5LTRhMjMtOThhOC1lZThkZjFjNWE1MWYiLCJqZXRfYXAiOiJ1bmtub3duIiwiamV0X2NtIjoiZndkIiwiamV0X3JlYyI6Im5vbmUiLCJqdGkiOiI3Y2NjNWJmYi05YjcxLTQ5MjUtYjIzZC1kZTc4NmUyYTZkNmIiLCJuYmYiOjE3NDE3NzMzNTB9.PUshDn3-e_-84iDw74DwtZCcc2oFEbvTbsSSXdycusShonQ8qLkEbWic3oekqFq_d0ovIU-KW-FpfKyEDbW2VcCQ0PrFe-VQkyWTGdvjZ0r1UbGwLm705DB4bSPjhXxJ8jSWpN_dCbsTFI0CWy71F1BO09MiBWB6p3k8hVLgJpyKBXM35Mq5Ae4QJD58dX5q1NFjzj0bht2-MXeuKHc-lZ0B-9DfRMusuTbVCMzUpKXLrLJHydbDf51ltIFBcECHn6Idx2wPRzq8nRLuhb05gocw6L0GFsbwq1GNLsxwhdY3Gq81oORLpmva5CugPIBC6OUpUlieorOgEpk8IKyocg';
     let kdc_proxy_url = '';
     let desktopSize: DesktopSize = {
-        width: 1280,
-        height: 768,
+        width: 1600,
+        height: 1200,
     };
     let pcb: string;
     let pop_up = false;
