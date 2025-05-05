@@ -15,6 +15,7 @@ use crate::rdp::refresh_rectangle::RefreshRectanglePdu;
 use crate::rdp::server_error_info::ServerSetErrorInfoPdu;
 use crate::rdp::session_info::SaveSessionInfoPdu;
 use crate::rdp::suppress_output::SuppressOutputPdu;
+use crate::rdp::update::UpdatePdu;
 
 pub const BASIC_SECURITY_HEADER_SIZE: usize = 4;
 pub const SHARE_DATA_HEADER_COMPRESSION_MASK: u8 = 0xF;
@@ -73,19 +74,19 @@ impl<'de> Decode<'de> for BasicSecurityHeader {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct ShareControlHeader {
-    pub share_control_pdu: ShareControlPdu,
+pub struct ShareControlHeader<'a> {
+    pub share_control_pdu: ShareControlPdu<'a>,
     pub pdu_source: u16,
     pub share_id: u32,
 }
 
-impl ShareControlHeader {
+impl ShareControlHeader<'_> {
     const NAME: &'static str = "ShareControlHeader";
 
     const FIXED_PART_SIZE: usize = SHARE_CONTROL_HEADER_SIZE;
 }
 
-impl Encode for ShareControlHeader {
+impl Encode for ShareControlHeader<'_> {
     fn encode(&self, dst: &mut WriteCursor<'_>) -> EncodeResult<()> {
         ensure_size!(in: dst, size: self.size());
 
@@ -111,7 +112,7 @@ impl Encode for ShareControlHeader {
     }
 }
 
-impl<'de> Decode<'de> for ShareControlHeader {
+impl<'de> Decode<'de> for ShareControlHeader<'de> {
     fn decode(src: &mut ReadCursor<'de>) -> DecodeResult<Self> {
         ensure_fixed_part_size!(in: src);
 
@@ -134,36 +135,36 @@ impl<'de> Decode<'de> for ShareControlHeader {
             share_id,
         };
 
-        if pdu_type == ShareControlPduType::DataPdu {
-            // Some windows version have an issue where
-            // there is some padding not part of the inner unit.
-            // Consume that data
-            let header_length = header.size();
+        // if pdu_type == ShareControlPduType::DataPdu {
+        //     // Some windows version have an issue where
+        //     // there is some padding not part of the inner unit.
+        //     // Consume that data
+        //     let header_length = header.size();
 
-            if header_length != total_length {
-                if total_length < header_length {
-                    return Err(not_enough_bytes_err!(total_length, header_length));
-                }
+        //     if header_length != total_length {
+        //         if total_length < header_length {
+        //             return Err(not_enough_bytes_err!(total_length, header_length));
+        //         }
 
-                let padding = total_length - header_length;
-                ensure_size!(in: src, size: padding);
-                read_padding!(src, padding);
-            }
-        }
+        //         let padding = total_length - header_length;
+        //         ensure_size!(in: src, size: padding);
+        //         read_padding!(src, padding);
+        //     }
+        // }
 
         Ok(header)
     }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub enum ShareControlPdu {
+pub enum ShareControlPdu<'a> {
     ServerDemandActive(ServerDemandActive),
     ClientConfirmActive(ClientConfirmActive),
-    Data(ShareDataHeader),
+    Data(ShareDataHeader<'a>),
     ServerDeactivateAll(ServerDeactivateAll),
 }
 
-impl ShareControlPdu {
+impl ShareControlPdu<'_> {
     const NAME: &'static str = "ShareControlPdu";
 
     pub fn as_short_name(&self) -> &str {
@@ -184,7 +185,10 @@ impl ShareControlPdu {
         }
     }
 
-    pub fn from_type(src: &mut ReadCursor<'_>, share_type: ShareControlPduType) -> DecodeResult<Self> {
+    pub fn from_type<'de>(
+        src: &mut ReadCursor<'de>,
+        share_type: ShareControlPduType,
+    ) -> DecodeResult<ShareControlPdu<'de>> {
         match share_type {
             ShareControlPduType::DemandActivePdu => {
                 Ok(ShareControlPdu::ServerDemandActive(ServerDemandActive::decode(src)?))
@@ -201,7 +205,7 @@ impl ShareControlPdu {
     }
 }
 
-impl Encode for ShareControlPdu {
+impl Encode for ShareControlPdu<'_> {
     fn encode(&self, dst: &mut WriteCursor<'_>) -> EncodeResult<()> {
         match self {
             ShareControlPdu::ServerDemandActive(pdu) => pdu.encode(dst),
@@ -226,14 +230,14 @@ impl Encode for ShareControlPdu {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct ShareDataHeader {
-    pub share_data_pdu: ShareDataPdu,
+pub struct ShareDataHeader<'a> {
+    pub share_data_pdu: ShareDataPdu<'a>,
     pub stream_priority: StreamPriority,
     pub compression_flags: CompressionFlags,
     pub compression_type: client_info::CompressionType,
 }
 
-impl ShareDataHeader {
+impl ShareDataHeader<'_> {
     const NAME: &'static str = "ShareDataHeader";
 
     const FIXED_PART_SIZE: usize = PADDING_FIELD_SIZE
@@ -244,7 +248,7 @@ impl ShareDataHeader {
         + COMPRESSED_LENGTH_FIELD_SIZE;
 }
 
-impl Encode for ShareDataHeader {
+impl Encode for ShareDataHeader<'_> {
     fn encode(&self, dst: &mut WriteCursor<'_>) -> EncodeResult<()> {
         ensure_size!(in: dst, size: self.size());
 
@@ -279,7 +283,7 @@ impl Encode for ShareDataHeader {
     }
 }
 
-impl<'de> Decode<'de> for ShareDataHeader {
+impl<'de> Decode<'de> for ShareDataHeader<'de> {
     fn decode(src: &mut ReadCursor<'de>) -> DecodeResult<Self> {
         ensure_fixed_part_size!(in: src);
 
@@ -310,7 +314,7 @@ impl<'de> Decode<'de> for ShareDataHeader {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub enum ShareDataPdu {
+pub enum ShareDataPdu<'a> {
     Synchronize(SynchronizePdu),
     Control(ControlPdu),
     FontList(FontPdu),
@@ -324,7 +328,7 @@ pub enum ShareDataPdu {
     ShutdownDenied,
     SuppressOutput(SuppressOutputPdu),
     RefreshRectangle(RefreshRectanglePdu),
-    Update(Vec<u8>),
+    Update(UpdatePdu<'a>),
     Pointer(Vec<u8>),
     PlaySound(Vec<u8>),
     SetKeyboardIndicators(Vec<u8>),
@@ -338,7 +342,7 @@ pub enum ShareDataPdu {
     StatusInfoPdu(Vec<u8>),
 }
 
-impl ShareDataPdu {
+impl ShareDataPdu<'_> {
     const NAME: &'static str = "ShareDataPdu";
 
     pub fn as_short_name(&self) -> &str {
@@ -401,7 +405,7 @@ impl ShareDataPdu {
         }
     }
 
-    fn from_type(src: &mut ReadCursor<'_>, share_type: ShareDataPduType) -> DecodeResult<Self> {
+    fn from_type<'de>(src: &mut ReadCursor<'de>, share_type: ShareDataPduType) -> DecodeResult<ShareDataPdu<'de>> {
         match share_type {
             ShareDataPduType::Synchronize => Ok(ShareDataPdu::Synchronize(SynchronizePdu::decode(src)?)),
             ShareDataPduType::Control => Ok(ShareDataPdu::Control(ControlPdu::decode(src)?)),
@@ -420,7 +424,7 @@ impl ShareDataPdu {
             ShareDataPduType::ShutdownDenied => Ok(ShareDataPdu::ShutdownDenied),
             ShareDataPduType::SuppressOutput => Ok(ShareDataPdu::SuppressOutput(SuppressOutputPdu::decode(src)?)),
             ShareDataPduType::RefreshRectangle => Ok(ShareDataPdu::RefreshRectangle(RefreshRectanglePdu::decode(src)?)),
-            ShareDataPduType::Update => Ok(ShareDataPdu::Update(src.remaining().to_vec())),
+            ShareDataPduType::Update => Ok(ShareDataPdu::Update(UpdatePdu::decode(src)?)),
             ShareDataPduType::Pointer => Ok(ShareDataPdu::Pointer(src.remaining().to_vec())),
             ShareDataPduType::PlaySound => Ok(ShareDataPdu::PlaySound(src.remaining().to_vec())),
             ShareDataPduType::SetKeyboardIndicators => {
@@ -442,7 +446,7 @@ impl ShareDataPdu {
     }
 }
 
-impl Encode for ShareDataPdu {
+impl Encode for ShareDataPdu<'_> {
     fn encode(&self, dst: &mut WriteCursor<'_>) -> EncodeResult<()> {
         match self {
             ShareDataPdu::Synchronize(pdu) => pdu.encode(dst),
@@ -477,8 +481,8 @@ impl Encode for ShareDataPdu {
             ShareDataPdu::ShutdownRequest | ShareDataPdu::ShutdownDenied => 0,
             ShareDataPdu::SuppressOutput(pdu) => pdu.size(),
             ShareDataPdu::RefreshRectangle(pdu) => pdu.size(),
-            ShareDataPdu::Update(buffer)
-            | ShareDataPdu::Pointer(buffer)
+            ShareDataPdu::Update(pdu) => pdu.size(),
+            ShareDataPdu::Pointer(buffer)
             | ShareDataPdu::PlaySound(buffer)
             | ShareDataPdu::SetKeyboardIndicators(buffer)
             | ShareDataPdu::BitmapCachePersistentList(buffer)

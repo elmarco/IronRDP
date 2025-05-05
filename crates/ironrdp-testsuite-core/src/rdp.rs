@@ -173,17 +173,17 @@ lazy_static! {
         pdu.license_header.preamble_message_size = pdu.size() as u16;
         pdu.into()
     };
-    pub static ref SERVER_DEMAND_ACTIVE_PDU: ShareControlHeader = ShareControlHeader {
+    pub static ref SERVER_DEMAND_ACTIVE_PDU: ShareControlHeader<'static> = ShareControlHeader {
         share_control_pdu: ShareControlPdu::ServerDemandActive(SERVER_DEMAND_ACTIVE.clone()),
         pdu_source: 1002,
         share_id: 66_538,
     };
-    pub static ref CLIENT_DEMAND_ACTIVE_PDU: ShareControlHeader = ShareControlHeader {
+    pub static ref CLIENT_DEMAND_ACTIVE_PDU: ShareControlHeader<'static> = ShareControlHeader {
         share_control_pdu: ShareControlPdu::ClientConfirmActive(CLIENT_DEMAND_ACTIVE.clone()),
         pdu_source: 1007,
         share_id: 66_538,
     };
-    pub static ref CLIENT_SYNCHRONIZE: ShareControlHeader = ShareControlHeader {
+    pub static ref CLIENT_SYNCHRONIZE: ShareControlHeader<'static> = ShareControlHeader {
         share_control_pdu: ShareControlPdu::Data(ShareDataHeader {
             share_data_pdu: ShareDataPdu::Synchronize(SynchronizePdu { target_user_id: 0x03ea }),
             stream_priority: StreamPriority::Low,
@@ -193,7 +193,7 @@ lazy_static! {
         pdu_source: 1007,
         share_id: 66_538,
     };
-    pub static ref CONTROL_COOPERATE: ShareControlHeader = ShareControlHeader {
+    pub static ref CONTROL_COOPERATE: ShareControlHeader<'static> = ShareControlHeader {
         share_control_pdu: ShareControlPdu::Data(ShareDataHeader {
             share_data_pdu: ShareDataPdu::Control(ControlPdu {
                 action: ControlAction::Cooperate,
@@ -207,7 +207,7 @@ lazy_static! {
         pdu_source: 1007,
         share_id: 66_538,
     };
-    pub static ref CONTROL_REQUEST_CONTROL: ShareControlHeader = ShareControlHeader {
+    pub static ref CONTROL_REQUEST_CONTROL: ShareControlHeader<'static> = ShareControlHeader {
         share_control_pdu: ShareControlPdu::Data(ShareDataHeader {
             share_data_pdu: ShareDataPdu::Control(ControlPdu {
                 action: ControlAction::RequestControl,
@@ -221,7 +221,7 @@ lazy_static! {
         pdu_source: 1007,
         share_id: 66_538,
     };
-    pub static ref SERVER_GRANTED_CONTROL: ShareControlHeader = ShareControlHeader {
+    pub static ref SERVER_GRANTED_CONTROL: ShareControlHeader<'static> = ShareControlHeader {
         share_control_pdu: ShareControlPdu::Data(ShareDataHeader {
             share_data_pdu: ShareDataPdu::Control(ControlPdu {
                 action: ControlAction::GrantedControl,
@@ -235,7 +235,7 @@ lazy_static! {
         pdu_source: 1002,
         share_id: 66_538,
     };
-    pub static ref CLIENT_FONT_LIST: ShareControlHeader = ShareControlHeader {
+    pub static ref CLIENT_FONT_LIST: ShareControlHeader<'static> = ShareControlHeader {
         share_control_pdu: ShareControlPdu::Data(ShareDataHeader {
             share_data_pdu: ShareDataPdu::FontList(FontPdu {
                 number: 0,
@@ -250,7 +250,7 @@ lazy_static! {
         pdu_source: 1007,
         share_id: 66_538,
     };
-    pub static ref SERVER_FONT_MAP: ShareControlHeader = ShareControlHeader {
+    pub static ref SERVER_FONT_MAP: ShareControlHeader<'static> = ShareControlHeader {
         share_control_pdu: ShareControlPdu::Data(ShareDataHeader {
             share_data_pdu: ShareDataPdu::FontMap(FontPdu {
                 number: 0,
@@ -265,7 +265,7 @@ lazy_static! {
         pdu_source: 1002,
         share_id: 66_538,
     };
-    pub static ref MONITOR_LAYOUT_PDU: ShareControlHeader = ShareControlHeader {
+    pub static ref MONITOR_LAYOUT_PDU: ShareControlHeader<'static> = ShareControlHeader {
         share_control_pdu: ShareControlPdu::Data(ShareDataHeader {
             share_data_pdu: ShareDataPdu::MonitorLayout(MonitorLayoutPdu {
                 monitors: crate::monitor_data::MONITOR_DATA_WITH_MONITORS.monitors.clone(),

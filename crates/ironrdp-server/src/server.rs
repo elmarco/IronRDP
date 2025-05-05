@@ -807,7 +807,7 @@ impl RdpServer {
     }
 
     async fn handle_io_channel_data(&mut self, data: SendDataRequest<'_>) -> Result<bool> {
-        let control: rdp::headers::ShareControlHeader = decode(data.user_data.as_ref())?;
+        let control: rdp::headers::ShareControlHeader<'_> = decode(data.user_data.as_ref())?;
 
         match control.share_control_pdu {
             ShareControlPdu::Data(header) => match header.share_data_pdu {

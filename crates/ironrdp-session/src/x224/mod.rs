@@ -5,6 +5,7 @@ use ironrdp_dvc::{DrdynvcClient, DvcProcessor, DynamicVirtualChannel};
 use ironrdp_pdu::mcs::{DisconnectProviderUltimatum, DisconnectReason, McsMessage};
 use ironrdp_pdu::rdp::headers::ShareDataPdu;
 use ironrdp_pdu::rdp::server_error_info::{ErrorInfo, ProtocolIndependentCode, ServerSetErrorInfoPdu};
+use ironrdp_pdu::rdp::update::UpdatePdu;
 use ironrdp_pdu::x224::X224;
 use ironrdp_svc::{client_encode_svc_messages, StaticChannelSet, SvcMessage, SvcProcessor, SvcProcessorMessages};
 
@@ -12,7 +13,7 @@ use crate::{SessionError, SessionErrorExt as _, SessionResult};
 
 /// X224 Processor output
 #[derive(Debug, Clone)]
-pub enum ProcessorOutput {
+pub enum ProcessorOutput<'a> {
     /// A buffer with encoded data to send to the server.
     ResponseFrame(Vec<u8>),
     /// A graceful disconnect notification. Client should close the connection upon receiving this.
@@ -22,6 +23,7 @@ pub enum ProcessorOutput {
     ///
     /// [Deactivation-Reactivation Sequence]: https://learn.microsoft.com/en-us/openspecs/windows_protocols/ms-rdpbcgr/dfc234ce-481a-4674-9a5d-2a7bafb14432
     DeactivateAll(Box<ConnectionActivationSequence>),
+    Update(UpdatePdu<'a>),
 }
 
 #[derive(Debug, Clone)]
@@ -90,7 +92,7 @@ impl Processor {
 
     /// Processes a received PDU. Returns a vector of [`ProcessorOutput`] that must be processed
     /// in the returned order.
-    pub fn process(&mut self, frame: &[u8]) -> SessionResult<Vec<ProcessorOutput>> {
+    pub fn process<'a>(&mut self, frame: &'a [u8]) -> SessionResult<Vec<ProcessorOutput<'a>>> {
         let data_ctx: SendDataIndicationCtx<'_> =
             ironrdp_connector::legacy::decode_send_data_indication(frame).map_err(crate::legacy::map_error)?;
         let channel_id = data_ctx.channel_id;
@@ -106,7 +108,7 @@ impl Processor {
         }
     }
 
-    fn process_io_channel(&self, data_ctx: SendDataIndicationCtx<'_>) -> SessionResult<Vec<ProcessorOutput>> {
+    fn process_io_channel<'a>(&self, data_ctx: SendDataIndicationCtx<'a>) -> SessionResult<Vec<ProcessorOutput<'a>>> {
         debug_assert_eq!(data_ctx.channel_id, self.io_channel_id);
 
         let io_channel = ironrdp_connector::legacy::decode_io_channel(data_ctx).map_err(crate::legacy::map_error)?;
@@ -158,6 +160,10 @@ impl Processor {
                             )),
                         ])
                     }
+                    ShareDataPdu::Update(update) => {
+                        debug!("Got slow-path graphics update");
+                        Ok(vec![ProcessorOutput::Update(update)])
+                    }
                     _ => Err(reason_err!(
                         "IO channel",
                         "unhandled PDU: {:?}",
@@ -172,7 +178,7 @@ impl Processor {
     }
 
     /// Send a pdu on the static global channel. Typically used to send input events
-    pub fn encode_static(&self, output: &mut WriteBuf, pdu: ShareDataPdu) -> SessionResult<usize> {
+    pub fn encode_static(&self, output: &mut WriteBuf, pdu: ShareDataPdu<'_>) -> SessionResult<usize> {
         let written =
             ironrdp_connector::legacy::encode_share_data(self.user_channel_id, self.io_channel_id, 0, pdu, output)
                 .map_err(crate::legacy::map_error)?;

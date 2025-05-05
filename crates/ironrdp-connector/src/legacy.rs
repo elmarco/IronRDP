@@ -81,7 +81,7 @@ pub fn encode_share_control(
     initiator_id: u16,
     channel_id: u16,
     share_id: u32,
-    pdu: rdp::headers::ShareControlPdu,
+    pdu: rdp::headers::ShareControlPdu<'_>,
     buf: &mut WriteBuf,
 ) -> ConnectorResult<usize> {
     let pdu_source = initiator_id;
@@ -96,16 +96,16 @@ pub fn encode_share_control(
 }
 
 #[derive(Debug, Clone)]
-pub struct ShareControlCtx {
+pub struct ShareControlCtx<'a> {
     pub initiator_id: u16,
     pub channel_id: u16,
     pub share_id: u32,
     pub pdu_source: u16,
-    pub pdu: rdp::headers::ShareControlPdu,
+    pub pdu: rdp::headers::ShareControlPdu<'a>,
 }
 
-pub fn decode_share_control(ctx: SendDataIndicationCtx<'_>) -> ConnectorResult<ShareControlCtx> {
-    let user_msg = ctx.decode_user_data::<rdp::headers::ShareControlHeader>()?;
+pub fn decode_share_control(ctx: SendDataIndicationCtx<'_>) -> ConnectorResult<ShareControlCtx<'_>> {
+    let user_msg = ctx.decode_user_data::<rdp::headers::ShareControlHeader<'_>>()?;
 
     Ok(ShareControlCtx {
         initiator_id: ctx.initiator_id,
@@ -120,7 +120,7 @@ pub fn encode_share_data(
     initiator_id: u16,
     channel_id: u16,
     share_id: u32,
-    pdu: rdp::headers::ShareDataPdu,
+    pdu: rdp::headers::ShareDataPdu<'_>,
     buf: &mut WriteBuf,
 ) -> ConnectorResult<usize> {
     let share_data_header = rdp::headers::ShareDataHeader {
@@ -136,15 +136,15 @@ pub fn encode_share_data(
 }
 
 #[derive(Debug, Clone)]
-pub struct ShareDataCtx {
+pub struct ShareDataCtx<'a> {
     pub initiator_id: u16,
     pub channel_id: u16,
     pub share_id: u32,
     pub pdu_source: u16,
-    pub pdu: rdp::headers::ShareDataPdu,
+    pub pdu: rdp::headers::ShareDataPdu<'a>,
 }
 
-pub fn decode_share_data(ctx: SendDataIndicationCtx<'_>) -> ConnectorResult<ShareDataCtx> {
+pub fn decode_share_data(ctx: SendDataIndicationCtx<'_>) -> ConnectorResult<ShareDataCtx<'_>> {
     let ctx = decode_share_control(ctx)?;
 
     let rdp::headers::ShareControlPdu::Data(share_data_header) = ctx.pdu else {
@@ -162,12 +162,12 @@ pub fn decode_share_data(ctx: SendDataIndicationCtx<'_>) -> ConnectorResult<Shar
     })
 }
 
-pub enum IoChannelPdu {
-    Data(ShareDataCtx),
+pub enum IoChannelPdu<'a> {
+    Data(ShareDataCtx<'a>),
     DeactivateAll(ServerDeactivateAll),
 }
 
-pub fn decode_io_channel(ctx: SendDataIndicationCtx<'_>) -> ConnectorResult<IoChannelPdu> {
+pub fn decode_io_channel(ctx: SendDataIndicationCtx<'_>) -> ConnectorResult<IoChannelPdu<'_>> {
     let ctx = decode_share_control(ctx)?;
 
     match ctx.pdu {

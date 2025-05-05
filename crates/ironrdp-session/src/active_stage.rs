@@ -171,7 +171,7 @@ impl ActiveStage {
     }
 
     /// Send a pdu on the static global channel. Typically used to send input events
-    pub fn encode_static(&self, output: &mut WriteBuf, pdu: ShareDataPdu) -> SessionResult<usize> {
+    pub fn encode_static(&self, output: &mut WriteBuf, pdu: ShareDataPdu<'_>) -> SessionResult<usize> {
         self.x224_processor.encode_static(output, pdu)
     }
 
@@ -259,10 +259,10 @@ pub enum ActiveStageOutput {
     DeactivateAll(Box<ConnectionActivationSequence>),
 }
 
-impl TryFrom<x224::ProcessorOutput> for ActiveStageOutput {
+impl TryFrom<x224::ProcessorOutput<'_>> for ActiveStageOutput {
     type Error = SessionError;
 
-    fn try_from(value: x224::ProcessorOutput) -> Result<Self, Self::Error> {
+    fn try_from(value: x224::ProcessorOutput<'_>) -> Result<Self, Self::Error> {
         match value {
             x224::ProcessorOutput::ResponseFrame(frame) => Ok(Self::ResponseFrame(frame)),
             x224::ProcessorOutput::Disconnect(desc) => {
@@ -278,6 +278,7 @@ impl TryFrom<x224::ProcessorOutput> for ActiveStageOutput {
                 Ok(Self::Terminate(desc))
             }
             x224::ProcessorOutput::DeactivateAll(cas) => Ok(Self::DeactivateAll(cas)),
+            x224::ProcessorOutput::Update(update_pdu) => todo!(),
         }
     }
 }

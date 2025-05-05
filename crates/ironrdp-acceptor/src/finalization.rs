@@ -195,11 +195,11 @@ impl FinalizationSequence {
     }
 }
 
-fn create_synchronize_confirm() -> rdp::headers::ShareDataPdu {
+fn create_synchronize_confirm() -> rdp::headers::ShareDataPdu<'static> {
     rdp::headers::ShareDataPdu::Synchronize(rdp::finalization_messages::SynchronizePdu { target_user_id: 0 })
 }
 
-fn create_cooperate_confirm() -> rdp::headers::ShareDataPdu {
+fn create_cooperate_confirm() -> rdp::headers::ShareDataPdu<'static> {
     rdp::headers::ShareDataPdu::Control(rdp::finalization_messages::ControlPdu {
         action: rdp::finalization_messages::ControlAction::Cooperate,
         grant_id: 0,
@@ -207,7 +207,7 @@ fn create_cooperate_confirm() -> rdp::headers::ShareDataPdu {
     })
 }
 
-fn create_control_confirm(user_id: u16) -> rdp::headers::ShareDataPdu {
+fn create_control_confirm(user_id: u16) -> rdp::headers::ShareDataPdu<'static> {
     rdp::headers::ShareDataPdu::Control(rdp::finalization_messages::ControlPdu {
         action: rdp::finalization_messages::ControlAction::GrantedControl,
         grant_id: user_id,
@@ -215,16 +215,20 @@ fn create_control_confirm(user_id: u16) -> rdp::headers::ShareDataPdu {
     })
 }
 
-fn create_font_map() -> rdp::headers::ShareDataPdu {
+fn create_font_map() -> rdp::headers::ShareDataPdu<'static> {
     rdp::headers::ShareDataPdu::FontMap(rdp::finalization_messages::FontPdu::default())
 }
 
-fn decode_share_control(input: &[u8]) -> ConnectorResult<rdp::headers::ShareControlHeader> {
+fn decode_share_control(input: &[u8]) -> ConnectorResult<rdp::headers::ShareControlHeader<'_>> {
     let data_request = ironrdp_core::decode::<X224<pdu::mcs::SendDataRequest<'_>>>(input)
         .map_err(ConnectorError::decode)
         .map(|p| p.0)?;
-    let share_control = ironrdp_core::decode::<rdp::headers::ShareControlHeader>(data_request.user_data.as_ref())
-        .map_err(ConnectorError::decode)?;
+    let data = match data_request.user_data {
+        std::borrow::Cow::Borrowed(data) => data,
+        std::borrow::Cow::Owned(_) => unreachable!(),
+    };
+    let share_control =
+        ironrdp_core::decode::<rdp::headers::ShareControlHeader<'_>>(data).map_err(ConnectorError::decode)?;
     Ok(share_control)
 }
 

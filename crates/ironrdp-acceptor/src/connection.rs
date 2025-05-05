@@ -659,8 +659,9 @@ impl Sequence for Acceptor {
                 };
                 match message {
                     mcs::McsMessage::SendDataRequest(data) => {
-                        let capabilities_confirm = decode::<rdp::headers::ShareControlHeader>(data.user_data.as_ref())
-                            .map_err(ConnectorError::decode);
+                        let capabilities_confirm =
+                            decode::<rdp::headers::ShareControlHeader<'_>>(data.user_data.as_ref())
+                                .map_err(ConnectorError::decode);
                         let capabilities_confirm = match capabilities_confirm {
                             Ok(capabilities_confirm) => capabilities_confirm,
                             Err(e) => {
